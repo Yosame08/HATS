@@ -73,10 +73,7 @@ void TaskData(const string &mode){
 
 int main(){
     std::vector<std::thread> threads;
-    TaskTurn();
-    //threads.emplace_back(TaskTurn);
-    //for(auto &i:threads)i.join();
-    return 0;
+    threads.emplace_back(TaskTurn);
 
     traffics.init("../../train_traffic_data.csv");
     string pref = "vec";
@@ -97,8 +94,8 @@ int main(){
         }
         file.close();
     }
-//    threads.emplace_back(TaskData, "train");
-//    threads.emplace_back(TaskData, "valid");
+    threads.emplace_back(TaskData, "train");
+    threads.emplace_back(TaskData, "valid");
 
     for(auto &i:threads)i.join();
     return 0;

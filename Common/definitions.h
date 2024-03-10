@@ -12,7 +12,7 @@
 #define BETA 3 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
-#define vec_len 20
+#define vec_len 10
 #define granularity 0.2 // for calculating the probability of turning
 #include <vector>
 #include <unordered_map>

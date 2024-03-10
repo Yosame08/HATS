@@ -46,10 +46,10 @@ double TypeChangeProb(int _old, int _new){
     return 0.5*pow(2,_new<=4?_new-4:4-_new);
 }
 
-/// @param dire RAD
+/// @param angle RAD
 /// @brief Convert radians to angles and predict with the fitted function
+extern vector<int> times;
 double AngleProb(double angle, long long time){
-    static vector<int> times = LoadParam(PARAMFILE);
     int l,r;
     auto f = lower_bound(times.begin(), times.end(), time);
     if(f==times.end())l=r=(int)times.size()-1; // time > maximum interval
@@ -84,29 +84,20 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         int node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
             if(vis[to])continue;
-            const PointLL &cross = roads[to].seg.front().line.startLL;
-            Vector vTo = latLonToXY(roads[to].seg.front().line.endLL,cross)-Point{0,0};
-            Vector vFrom = latLonToXY(roads[seqPath[top.node].first.roadID].seg.back().line.startLL,cross)-Point{0,0};
-            float angle = top.angle + M_PI - Angle(vFrom,vTo);
-            // double tranProb = top.accuProb / SearchDifDistProb(top.len - greatCircle, span)
-            //                   * SearchDifDistProb(totLen - greatCircle, span)
-            //                   * TypeChangeProb(roads[lastPath.roadID].level, roads[to].level);
+            float angle = top.angle;
             double tranProb = top.accuProb / SearchDifDistProb(top.len - greatCircle, span)
                                            / AngleProb(top.angle, span)
                                            * TypeChangeProb(roads[lastPath.roadID].level, roads[to].level);
             // 计算转弯概率，忽略长5m以下的道路
-            // if(RoadLen(to)>5){
-            //     for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
-            //         const int roadID = seqPath[oldnode].first.roadID;
-            //         if(RoadLen(roadID)>5){
-            //             const PointLL &cross = roads[roadID].seg.back().line.endLL;
-            //             Vector vFrom = latLonToXY(roads[roadID].seg.back().line.startLL,cross)-Point{0,0};
-            //             Vector vTo = latLonToXY(roads[to].seg.front().line.endLL,cross)-Point{0,0};
-            //             tranProb *= Transition(M_PI-Angle(vFrom,vTo));
-            //             break;
-            //         }
-            //     }
-            // }
+             if(RoadLen(to)>5){
+                 for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
+                     const int roadID = seqPath[oldnode].first.roadID;
+                     if(RoadLen(roadID)>5){
+                         angle += GetTurnAngle(roadID, to);
+                         break;
+                     }
+                 }
+             }
             // 找到目的地，计算概率
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
@@ -148,30 +139,40 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     return result;
 }
 
-void TurnInterpolation(int fromRoad, int toRoad, double toNodeDistA, double fromNodeDistB, long long lastStamp, long long nowStamp, Path& path){
-    const unsigned long long span = nowStamp - lastStamp;
-    long long tm = lastStamp;
-    auto predict = [&](int roadID, int toID, double toNodeDist, double needPass){
-        const int DistEPS=1;
-        while(needPass>DistEPS){
-            double vel = VelPrediction(roadID, toID, toNodeDist, tm);
-            if(vel<0.01)vel=0.01;
-            ++tm;
-            needPass-=vel;
-            toNodeDist-=vel;
+void TurnInterpolation(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, long long lastStamp, long long nowStamp, Path& pathOrigin){
+    const long long span = nowStamp - lastStamp;
+    Path maxPath;
+    int minDif = 1000000000;
+    for(int start = 0; start <= 32; start+=4){
+        long long tm = lastStamp;
+        auto predict = [&](int roadID, int toID, float toNodeDist, float vel, double needPass){
+            while(needPass>1){
+                vel = VelPrediction(roadID, toID, toNodeDist, vel, tm);
+                if(vel<0)vel=0;
+                ++tm, needPass-=vel, toNodeDist-=vel;
+            }
+            return vel;
+        };
+        Path path = pathOrigin;
+        float toNodeDist = toNodeDistA, vel = start;
+        path[0].vel = start;
+        for(int i=1, roadID = fromRoad;i<path.size()-1;++i){
+            vel = predict(roadID, path[i].roadID, toNodeDist, vel, toNodeDist);
+            path[i].timestamp = tm;
+            path[i].vel = vel;
+            roadID=path[i].roadID;
+            toNodeDist=RoadLen(roadID);
         }
-    };
-    double toNodeDist = toNodeDistA;
-    for(int i=1, roadID = fromRoad;i<path.size()-1;++i){
-        predict(roadID, path[i].roadID, toNodeDist, toNodeDist);
-        path[i].timestamp = tm;
-        roadID=path[i].roadID;
-        toNodeDist=RoadLen(roadID);
+        vel = predict(toRoad, -1, RoadLen(toRoad), vel, fromNodeDistB);
+        path.back().vel = vel;
+        long long calcSpan = tm-lastStamp;
+        if(abs(calcSpan-span)<=minDif){
+            double revise = 1/(calcSpan/(double)span);
+            for(int i=1;i<path.size()-1;++i)path[i].timestamp = lastStamp+(path[i].timestamp-lastStamp)*revise;
+            minDif=abs(calcSpan-span),maxPath=path;
+        }
     }
-    predict(toRoad, -1, RoadLen(toRoad), fromNodeDistB);
-    long long calcSpan = tm-lastStamp;
-    double revise = 1/(calcSpan/(double)span);
-    for(int i=1;i<path.size()-1;++i)path[i].timestamp = lastStamp+(path[i].timestamp-lastStamp)*revise;
+    pathOrigin=maxPath;
 }
 
 void solve(int id, ostringstream &match, ostringstream &recovery){
@@ -248,7 +249,7 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
     int outID;
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
     Path matched;
-    PathNode interpolation{-1,-1,-1};
+    PathNode interpolation{-1,-1,-1, -1};
     while(outID!=-1){
         auto &node=search[outID], &last=search[node.prev];
         if(!myAssert(!node.path.empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
@@ -274,18 +275,19 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
         }
         while(timeID<timestamps.size()&&timestamps[timeID]<=now.timestamp){
             // Every turn is recorded
-            int roadID; float toNodeDist;
+            int roadID; float toNodeDist, vel;
             if(timestamps[timeID]==now.timestamp){
                 roadID=now.roadID;
                 toNodeDist=now.toNodeDist;
             }else{
                 //interpolation
                 auto &last = matched[p+1].timestamp>=interpolation.timestamp?matched[p+1]:interpolation;
+                vel = last.vel;
                 roadID = last.roadID;
                 toNodeDist = last.toNodeDist;
                 for(long long span=0; toNodeDist>0 && span<timestamps[timeID]-last.timestamp; ++span){
-                    float vel = VelPrediction(roadID, p==nextOut?-1:matched[nextOut].roadID, toNodeDist, last.timestamp+span);
-                    if(vel<0.01)vel=0.01;
+                    vel = VelPrediction(roadID, p==nextOut?-1:matched[nextOut].roadID, toNodeDist, last.vel, last.timestamp+span);
+                    if(vel<0)vel=0;
                     toNodeDist -= vel;
                     if(toNodeDist<0){
                         toNodeDist=0;
@@ -302,7 +304,7 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
                     break;
                 }
             }
-            interpolation = PathNode{roadID,timestamps[timeID],toNodeDist};
+            interpolation = PathNode{roadID,timestamps[timeID], toNodeDist, vel};
             if(!myAssert(!(recov==PointLL(-1024,-1024)), "(Bug) Bad value: toNodeDist"))return;
             recovery<<timestamps[timeID]<<' '<<recov.lat<<' '<<recov.lon<<' '<<roadID<<'\n';
             ++timeID;
@@ -345,6 +347,7 @@ int main() {
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
+    LoadParam(PARAMFILE);
     m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
@@ -380,7 +383,7 @@ void ReadVectors(){
     for (int i = 0; i <= min(num_roads,PATH_NUM-1); ++i) {
         int road_id;
         file >> road_id;
-        std::vector<float> vector(vec_len+3);  // Assuming the vector size is 8
+        std::vector<float> vector(vec_len+4);
         for (int j = 0; j < vec_len; ++j) file >> vector[j];
         road_vectors[road_id]=vector;
     }

@@ -85,7 +85,7 @@ void TrafficHandler::init(const char* filename) {
 }
 
 double TrafficHandler::query(int roadID, int toID, long long timestamp) const{
-    if(toID==-1)return 1;//no need to consider lights
+    if(toID==-1)return 1;//no considering lights
     if(!lights[roadID].count(toID))return 1/(1+exp(-1));
     double accu=0, factor = 0.5;
     const auto &scoreArr = lights[roadID].at(toID)->score;

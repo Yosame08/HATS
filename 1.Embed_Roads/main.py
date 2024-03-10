@@ -80,7 +80,7 @@ for seq in sequences:
     for x in seq:
         occur[int(x)] += 1
 
-vec_size = 16
+vec_size = 6
 # 使用Word2Vec训练
 model = Word2Vec(sequences, vector_size=vec_size, window=5, min_count=1, workers=16, sg=0)
 

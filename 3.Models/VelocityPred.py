@@ -36,7 +36,7 @@ output_size = 1
 
 # 定义模型
 model = nn.Sequential(
-    nn.Linear(input_size, 512), nn.Sigmoid(),
+    nn.Linear(input_size, 512), nn.ELU(),
     nn.Linear(512, 256), nn.ELU(),
     nn.Linear(256, 128), nn.ELU(),
     nn.Linear(128, 64), nn.ELU(),

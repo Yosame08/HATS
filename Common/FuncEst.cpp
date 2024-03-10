@@ -37,9 +37,8 @@ void ReadTurn(const string &turnFN){
 
     while (std::getline(file, line)) {
         std::istringstream iss(line);
-        std::string temp;
         if (line.find("Secs:") != std::string::npos) {
-            iss >> timeNow >> temp;
+            iss >> timeNow;
             times.emplace_back(timeNow);
             freq[tot].reserve(mxSize);
         } else {
@@ -80,7 +79,7 @@ long double phi(long double x)
     return 0.5*(1.0 + sign*y);
 }
 
-long double CalcArea(long double _mu, long double _sigma){
+double CalcArea(long double _mu, long double _sigma){
     return phi((180-_mu)/_sigma) - phi(0-_mu/_sigma);
 }
 
@@ -155,6 +154,7 @@ void FindParam(int id){
 
 void FitParam(){
     std::vector<std::thread> threads;
+    threads.reserve(times.size());
     for(int i=0;i<times.size();++i){
         threads.emplace_back(FindParam, i);
     }
@@ -178,13 +178,12 @@ vector<int> LoadParam(const string& paramFN){
 
     while (std::getline(file, line)) {
         std::istringstream iss(line);
-        std::string temp;
         if (line.find("Secs:") != std::string::npos) {
-            iss >> time >> temp;
+            iss >> time;
             times.push_back(time);
         } else {
             int cnt=0;
-            while(iss >> best_param[time][cnt++]);
+            while(iss >> best_param[tot][cnt++]);
             ++tot;
         }
     }
@@ -196,7 +195,7 @@ vector<int> LoadParam(const string& paramFN){
         mulCache[i][mu3] = areaLeft / CalcArea(best_param[i][mu3],  best_param[i][sig3]) / (sqrt_2_PI * best_param[i][sig3]);
     }
     clog<<"Params for predicting turning prob loaded"<<endl;
-    clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(1,8)<<' '<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(0,12)<<' '<<Estimate_wrap(1,12)<<' '<<Estimate_wrap(10,12)<<endl;
+    //clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(1,8)<<' '<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(0,12)<<' '<<Estimate_wrap(1,12)<<' '<<Estimate_wrap(10,12)<<endl;
     set<int> ret;
     for(auto i:times)ret.insert(i);
     return times;

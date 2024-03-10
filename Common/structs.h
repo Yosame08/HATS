@@ -107,7 +107,7 @@ struct Road{
 struct PathNode{
     int roadID;
     long long timestamp;
-    float toNodeDist;
+    float toNodeDist, vel;
 };
 using Path = std::vector<PathNode>;
 
