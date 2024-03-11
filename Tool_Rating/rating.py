@@ -19,6 +19,7 @@ def calc_dist(lat1, lon1, lat2, lon2):
 
 def OpenTraj(filename):
     last = -1
+    timestamp = 0
     with open(filename, 'r') as f:
         lines = f.readlines()
         ret = []
@@ -33,6 +34,9 @@ def OpenTraj(filename):
                 ret = []
                 last = int(info[0])
             else:
+                if int(info[0]) == timestamp:
+                    continue
+                timestamp = int(info[0])
                 ret.append(info)
 
 
@@ -121,6 +125,6 @@ def calculate_metrics(file_true, file_pred):
 
 # File Path
 file_true = '../test_output.txt'
-file_pred = '../RecoveryHistory/3.10NewTurn(5000).txt'
+file_pred = '../RecoveryHistory/Recovery3.txt'
 
 calculate_metrics(file_true, file_pred)

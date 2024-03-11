@@ -1,149 +1,133 @@
-#include "graph.h"
-#include "Structs.h"
-#include "opCSV.h"
-#include "myDefines.h"
+#include "definitions.h"
+#include "structs.h"
+#include "reads.h"
+#include "maths.h"
 #include "predict.h"
+#include "FuncEst.h"
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <cmath>
 #include <stack>
 #include <queue>
-#include <unordered_map>
-#include <iomanip>
-#include <cstring>
-#include <cassert>
 #include <thread>
-#include <mutex>
 #include <atomic>
-#include <cmath>
+#include <unordered_set>
 using namespace std;
 
 G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[262144];
 ostringstream recovStream[262144], matchStream[262144];
-unordered_map<int,unordered_map<int,vector<GridInfo>>>inGrid;
-pair<double,double> cycles[PATH_NUM][24];
+GridType inGrid;
+vector<float> road_vectors[PATH_NUM];
+void ReadVectors();
 
-void ReadRoadnetOSM();
-void ReadTraces_Real(int &m);
-void ReadCycles();
-
-mutex clog_mtx;
-void safe_clog(const string& message) {
-    lock_guard<mutex> lock(clog_mtx);
-    clog << '\n' << message << endl;
-}
-
-double RoadLen(int roadID){
+float RoadLen(int roadID){
     return roads[roadID].seg.back().sumPrev;
 }
 
-double PtMatchProb(double dist){
-    static const double coefficient = 1 / (SIGZ * sqrt(M_2_PI));
-    double param = dist / SIGZ;
-    return exp(-(param * param * 0.5)) * coefficient;
+double DifDistProb(double dif, unsigned long long span) {
+    double ans;
+//    if(dif<0)ans = exp(-dif / span / 0.7) / 0.7;
+//    else ans = exp(-dif / span / 1.5) / 1.5;
+    ans = 0.05/sqrt(M_PI*2)/3 * exp(-dif*dif/(2*3*3));
+    if(dif>0) ans += 0.95/phi(250/400.0)/sqrt(M_PI*2)/400 * exp(-(dif-250)*(dif-250)/(2*400*400));
+    return ans==0 ? 1e-300 : ans; // return 0 may cause error
 }
 
-double DifDistProb(double dif) {
-    return sqrt(exp(-dif / BETA) / BETA);
-}
-
-double SearchDifDistProb(double dif) {
+double SearchDifDistProb(double dif, unsigned long long span) {
     if(dif<0)return 1;
-    double ans = sqrt(exp(-dif / BETA) / BETA);
-    return ans==0 ? 1e-200 : ans;
+    return DifDistProb(dif, span);
 }
 
 double TypeChangeProb(int _old, int _new){
-    return pow(2, _new-_old-6);
+    if(_old==-1)return pow(2,_new<=4?_new-4:4-_new);
+    if(_new==_old)return 1;
+    return 0.2;
+    //return 0.5*pow(2,_new<=4?_new-4:4-_new);
 }
 
-void FindRoad(Point &p, vector<Candidate>&found){
-    int gridX= int(p.x / GRIDSIZE), gridY= int(p.y / GRIDSIZE);
-    for(int lim = 35;found.empty()&&lim<=350;lim+=35){
-        for(int x= gridX-25; x <= gridX+25; ++x)for(int y= gridY-25; y <= gridY+25; ++y){
-            if(inGrid.find(x)==inGrid.end()||inGrid[x].find(y)==inGrid[x].end())continue;
-            for(auto &i:inGrid[x][y]){
-                Point cross;
-                Segments &nowSeg = roads[i.roadID].seg[i.segID];
-                double dist = DistPointSeg(nowSeg.line, p, cross);
-                if(dist>lim)continue;
-                found.push_back({i.roadID,nowSeg.sumAfter-Distance(cross,nowSeg.line.start), PtMatchProb(dist)});
-            }
-        }
+/// @param angle RAD
+/// @brief Convert radians to angles and predict with the fitted function
+extern vector<int> times;
+double AngleProb(double angle, long long time){
+    int l,r;
+    auto f = lower_bound(times.begin(), times.end(), time);
+    if(f==times.end())l=r=(int)times.size()-1; // time > maximum interval
+    else if(f==times.begin()&&time<*f)l=r=0; // time < minimum interval
+    else if(time==*f)l=r=f-times.begin();
+    else{
+        r = f-times.begin();
+        l = r - 1;
     }
+    if(l==r)return Estimate_wrap(angle*180/M_PI/time, l);
+    return (Estimate_wrap(angle*180/M_PI/time,l)+Estimate_wrap(angle*180/M_PI/time,r))/2;
 }
 
-double Transition(double dire){
-    return exp(-pow(dire,4));
-}
-
-double TimeUpJudge(long long over){
-    if(over<0)return 1;
-    double ans=sqrt(exp(-over));
-    return ans==0?1e-200:ans;
-}
-
-SearchRes SearchRoad(int fromRoad, int toRoad, double toNodeDistA, double fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
+SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
     // seqPath is to restore nodes searched. Every node restore information about current road and which node is previous road
-    vector<pair<PathNode,int>>seqPath; seqPath.reserve(65536);
+    vector<pair<PathNode,int>>seqPath;
+    //seqPath.reserve(4096);
     // Use DP to simplify searching process. Like Dijkstra but use "probability" as key for sort
-    bool vis[PATH_NUM]; memset(vis,0,sizeof vis); priority_queue<QueueInfo>q;
+    bool vis[PATH_NUM+1]{}; priority_queue<QueueInfo>q;
     // Initialize some const Value to prune search tree
-    const double greatCircle = Distance(lastTr.p, nowTr.p); const unsigned long long span = nowTr.timestamp - lastTr.timestamp;
+    const float greatCircle = lastTr.p.dist(nowTr.p);
+    const unsigned long long span = nowTr.timestamp - lastTr.timestamp;
     // Set starting state
     seqPath.push_back({{fromRoad, lastTr.timestamp, toNodeDistA}, -1});
-    q.push(QueueInfo{1, (int)seqPath.size()-1, 1, toNodeDistA});
+    q.push(QueueInfo{1, (int)seqPath.size()-1, TypeChangeProb(-1,roads[fromRoad].level), toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
     SearchRes result{-1};
-    int update=0;
+
     while(!q.empty()){
         const auto top=q.top();q.pop();
-        const auto &lastPath = seqPath[top.node].first;
+        const auto lastPath = seqPath[top.node].first;
         if(vis[lastPath.roadID])continue;
         vis[lastPath.roadID]=true;
         int node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
             if(vis[to])continue;
-            long long timestamp = lastPath.timestamp + TurnPrediction(lastPath.roadID, to, lastPath.toNodeDist, lastPath.timestamp);
-            double totLen = top.len + RoadLen(to);
-            double tranProb = top.accuProb / SearchDifDistProb(top.len - greatCircle) * SearchDifDistProb(totLen - greatCircle)
-                                           / TimeUpJudge(lastPath.timestamp-nowTr.timestamp) * TimeUpJudge(timestamp-nowTr.timestamp)
-                                           * TypeChangeProb(roads[lastPath.roadID].level, roads[to].level);
-            // 计算转弯概率，忽略长6m以下的道路
-            for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
-                const int &roadID = seqPath[oldnode].first.roadID;
-                if(RoadLen(roadID)>6){
-                    double &fromDirect = roads[roadID].seg.back().line.dire, &toDirect = roads[to].seg[0].line.dire;
-                    double &direBig = fromDirect>toDirect ? fromDirect : toDirect, &direSmall = fromDirect>toDirect ? toDirect : fromDirect;
-                    tranProb*=Transition(min(direBig - direSmall, direSmall - direBig + 2 * M_PI));
-                    break;
+            float angle = top.angle;
+            double tranProb = top.accuProb / SearchDifDistProb(top.len - greatCircle, span)
+                              / AngleProb(top.angle, span)
+                              * TypeChangeProb(roads[lastPath.roadID].level, roads[to].level);
+            // 计算转弯概率，忽略长5m以下的道路
+            if(RoadLen(to)>5){
+                for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
+                    const int roadID = seqPath[oldnode].first.roadID;
+                    if(RoadLen(roadID)>5){
+                        angle += GetTurnAngle(roadID, to);
+                        break;
+                    }
                 }
             }
             // 找到目的地，计算概率
             if(to==toRoad){
-                double allLen = top.len + fromNodeDistB;
+                float allLen = top.len + fromNodeDistB;
+                if(allLen >= span * 40)continue;
+                angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
                 // 如果是终点，没有走到头，修改计算的概率
-                double outProb = tranProb / SearchDifDistProb(totLen - greatCircle) * SearchDifDistProb(allLen - greatCircle);
+                double outProb = tranProb * DifDistProb(allLen - greatCircle, span)
+                                 * AngleProb(angle, span);
                 if(outProb>result.prob){
-                    seqPath.push_back({{to, lastPath.timestamp, RoadLen(toRoad)}, top.node});
-                    result = {outProb, allLen, (int)seqPath.size()-1};
+                    seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(toRoad)}, top.node});
+                    result = {outProb, allLen, angle, (int)seqPath.size()-1};
                 }
-                if(++update>2)break;
                 continue;
             }
+            float totLen = top.len + RoadLen(to);
+            angle += FindAngle(to,0);
+            tranProb *= SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span);
             // 检查应该入队还是被剪枝
-            if(seqPath.size()<(1<<21)){
-                // 各种剪枝：最多执行span/3步，也就是最快允许每3秒换一条路段
-                if(top.level + 1 > span/3)continue;
-                // span/4步后，比起点前更靠近目的地（直线）
-                if(top.level>span/4 && greatCircle<Distance(nowTr.p, roads[to].seg.back().line.end))continue;
-                // 车速极快
-                if(totLen > span*36)continue;
-                // 通过剪枝，入队
-                seqPath.push_back({{to, timestamp, RoadLen(to)}, top.node});
-                q.push({top.level + 1, (int)seqPath.size()-1, tranProb, totLen});
-                if(seqPath.size()%(1<<20)==0)safe_clog(string("seqPath.size:")+ to_string(seqPath.size()));
-            }
+            // 各种剪枝：最多执行span/2步，也就是最快允许每2秒换一条路段
+            if(top.level + 1 > span/2)continue;
+            // span/4步后，比起点前更靠近目的地（直线）
+            if(top.level>span/4 && greatCircle<nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
+            // 车速极快
+            if(totLen >= span * 40)continue;
+            // 通过剪枝，入队
+            seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
+            q.push({top.level+1, (int)seqPath.size()-1, tranProb, totLen, angle});
         }
     }
     // 搜索结束
@@ -154,60 +138,97 @@ SearchRes SearchRoad(int fromRoad, int toRoad, double toNodeDistA, double fromNo
         result.path.push_back(seqPath[choose.top()].first);
         choose.pop();
     }
-    if(result.length>0){
-        double limit = span * ((result.length - fromNodeDistB)/(double)result.length); // time to the last turn (linear)
-        long long totTime = result.path.back().timestamp - lastTr.timestamp;
-        double per = limit/totTime;
-        for(int i=1;i<result.path.size();++i)result.path[i].timestamp = lastTr.timestamp + (result.path[i].timestamp - lastTr.timestamp) * per;
-    }else{
-        for(int i=1;i<result.path.size();++i)result.path[i].timestamp=lastTr.timestamp*span*(double(i)/result.path.size());
-    }
-    result.path.push_back({toRoad, nowTr.timestamp, RoadLen(toRoad)-fromNodeDistB});
+    result.path.push_back({toRoad, nowTr.timestamp, (float)RoadLen(toRoad)-fromNodeDistB});
     return result;
 }
 
+void TurnInterpolation(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, long long lastStamp, long long nowStamp,
+                       const vector<long long>& interStamps, Path& pathOrigin){
+    const long long span = nowStamp - lastStamp;
+    Path nowPath=pathOrigin;
+    int minDif = 1000000000;
+    for(int start = 0; start <= 36; start+=3){
+        long long tm = lastStamp;
+        auto predict = [&](int roadID, int toID, float toNodeDist, float vel, double needPass){
+            while(needPass>0.1){
+                vel = VelPrediction(roadID, toID, toNodeDist, vel, tm);
+                if(vel<0.01)vel=0.01;
+                ++tm, needPass-=vel, toNodeDist-=vel;
+            }
+            return vel;
+        };
+        float toNodeDist = toNodeDistA, vel = start;
+        nowPath[0].vel = start;
+        for(int i=1, roadID = fromRoad;i<nowPath.size()-1;++i){
+            vel = predict(roadID, nowPath[i].roadID, toNodeDist, vel, toNodeDist);
+            nowPath[i].timestamp = tm;
+            nowPath[i].vel = vel;
+            roadID=nowPath[i].roadID;
+            toNodeDist=RoadLen(roadID);
+        }
+        vel = predict(toRoad, -1, RoadLen(toRoad), vel, fromNodeDistB);
+        nowPath.back().vel = vel;
+        long long calcSpan = tm-lastStamp;
+        if(abs(calcSpan-span)<=minDif){
+            double revise = 1/(calcSpan/(double)span);
+            for(int i=1;i<nowPath.size()-1;++i)nowPath[i].timestamp = lastStamp+(nowPath[i].timestamp-lastStamp)*revise;
+            minDif=abs(calcSpan-span),pathOrigin=nowPath;
+        }
+    }
+}
+
+std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id, ostringstream &match, ostringstream &recovery){
-    auto beginTime = clock();
+    auto beginTM = clock();
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovery<<"Failed\n"<<-id-1<<'\n';
         safe_clog(string("Can't Match point to road at road id ")+ to_string(id) +string(" due to ")+cause);
         return false;
     };
+    const auto& traceNow = traces[id];
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
     vector<SearchNode>search;
     vector<long long>timestamps;
-    timestamps.push_back(traces[id][0].timestamp);
-    FindRoad(traces[id][0].p, found);
+    timestamps.push_back(traceNow[0].timestamp);
+    FindRoad(60, 240, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
-    for(auto &x:found)search.push_back({x.prob,x.toNodeDist,x.roadID,-1,0,{{x.roadID,traces[id][0].timestamp,x.toNodeDist}}});
+    for(auto &x:found)search.push_back({x.prob,x.toNodeDist,x.roadID,-1,0,{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
     int oldBegin=0, oldEnd=(int)search.size()-1;
+    unordered_set<unsigned long long>noPath;
 
-    for(int i=1;i<traces[id].size();++i){
-        for(long long t=timestamps.back()+RECOVER_INTERVAL;t<traces[id][i].timestamp;t+=RECOVER_INTERVAL)timestamps.push_back(t);
-        timestamps.push_back(traces[id][i].timestamp);
+    for(int i=1;i<traceNow.size();++i){
+        for(long long t=timestamps.back()+RECOVER_INTERVAL;t<traceNow[i].timestamp;t+=RECOVER_INTERVAL)timestamps.push_back(t);
+        timestamps.push_back(traceNow[i].timestamp);
         found.clear();
-        FindRoad(traces[id][i].p, found);
+        FindRoad(60, 240, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
             SearchNode maxNode{0};
             for(int l=oldBegin;l<=oldEnd;++l){
                 SearchNode &old = search[l];
+                unsigned long long hashed = now.roadID + ((unsigned long long)old.roadID << 32llu);
+                if(noPath.count(hashed))continue;
                 Path path;
                 double traceProb;
                 if(old.roadID == now.roadID){
                     double ground = old.toNodeDist - now.toNodeDist;
-                    traceProb = DifDistProb(abs(Distance(traces[id][i - 1].p, traces[id][i].p) - ground));
-                    path.push_back({now.roadID,traces[id][i].timestamp,now.toNodeDist});
+                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, traceNow[i].timestamp-traceNow[i-1].timestamp);
+                    path.push_back({now.roadID,traceNow[i].timestamp,now.toNodeDist});
+                    float angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
+                    traceProb *= AngleProb(angle, traceNow[i].timestamp-traceNow[i-1].timestamp);
                 }
                 else{
                     SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
-                                                  RoadLen(now.roadID) - now.toNodeDist, traces[id][i-1], traces[id][i]);
-                    if(result.prob==-1)continue;
-                    traceProb=result.prob;
+                                                  RoadLen(now.roadID) - now.toNodeDist, traceNow[i-1], traceNow[i]);
+                    if(result.prob==-1){
+                        noPath.insert(hashed);
+                        continue;
+                    }
+                    traceProb = result.prob;
                     path = result.path;
                 }
                 // now.prob is the difference between GPS point and fullPath point
@@ -221,90 +242,176 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
             int mxPoint=0;double mxProb=-1;
             for (int k = oldBegin; k <= oldEnd; ++k)if(search[k].prob > mxProb)mxProb=search[k].prob, mxPoint=k;
             for(auto &now:found)
-                search.push_back({now.prob, now.toNodeDist, now.roadID, mxPoint, i, {{now.roadID,traces[id][i].timestamp,now.toNodeDist}}});
+                search.push_back({now.prob, now.toNodeDist, now.roadID, mxPoint, i, {{now.roadID,traceNow[i].timestamp,now.toNodeDist}}});
         }
         oldBegin = oldEnd + 1, oldEnd = (int)search.size()-1;
         double maxProb=-1;
         for(int x=oldBegin;x<=oldEnd;++x)if(search[x].prob>maxProb)maxProb=search[x].prob;
         if(maxProb!=0)for(int x=oldBegin;x<=oldEnd;++x)search[x].prob/=maxProb;
     }
-    auto inferTime = clock()-beginTime;
-    beginTime = clock();
+    auto SPH = clock()-beginTM;
+    beginTM = clock();
     double maxProb=0;
     int outID;
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
-    Path matched;
-    PathNode interpolation{-1,-1,-1};
-    while(outID!=-1){
+    PointLL lastPoint = FindLatLon(search[outID].roadID, search[outID].toNodeDist);
+    int lastID = search[outID].roadID;
+    vector<Path>result;
+    while(search[outID].prev!=-1){
         auto &node=search[outID];
         if(!myAssert(!node.path.empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
-        for(int i=(int)node.path.size()-1;i>=0;--i)matched.push_back(node.path[i]);
+        auto &last=search[node.prev];
+        auto recov= std::lower_bound(timestamps.begin(), timestamps.end(), traceNow[last.pointID].timestamp);
+        if(!myAssert(*recov==traceNow[last.pointID].timestamp, "(Bug) Timestamp Error"))return;
+        result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
+        vector<float> *maxPredVel=nullptr;
+        long long minDif = 0;
+        for(float beginVel=0;beginVel<=36;beginVel+=3) { // test which velocity is better
+            long long tm = traceNow[last.pointID].timestamp;
+            float toNodeDist = node.toNodeDist, vel = beginVel;
+            int roadID = node.roadID, toID = node.path[1].roadID, index=1;
+            auto *predVel = new vector<float>{beginVel};
+            do{
+                while (toNodeDist > 0) {
+                    if ((vel = VelPrediction(roadID, toID, toNodeDist, vel, tm)) < 0.01)vel = 0.01;
+                    ++tm, toNodeDist -= vel, predVel->push_back(vel);
+                }
+                while (toNodeDist <= 0 && index < node.path.size() - 1){
+                    roadID = toID;
+                    toNodeDist += RoadLen(toID);
+                    toID = node.path[++index].roadID;
+                }
+            }while(index < node.path.size() - 1);
+            float needPass = toNodeDist - node.toNodeDist;
+            while (needPass > 0) {
+                if ((vel = VelPrediction(roadID, -1, toNodeDist, vel, tm)) < 0.01)vel = 0.01;
+                ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel);
+            }
+            if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
+                minDif = tm;
+                delete maxPredVel;
+                maxPredVel = predVel;
+            } else delete predVel;
+        }
+        float scale = float(minDif - traceNow[last.pointID].timestamp) / float(traceNow[node.pointID].timestamp - traceNow[last.pointID].timestamp);
+        float toNodeDist = node.toNodeDist, accu = 0;
+        int index=1, roadID = last.roadID;
+        auto update = [&](float dist){
+            while(toNodeDist <= 0 && index < node.path.size() - 1){
+                toNodeDist += RoadLen(node.path[index].roadID);
+                roadID = node.path[index++].roadID;
+            }
+            if(toNodeDist<0)toNodeDist=0;
+        };
+        for(auto x:*maxPredVel){
+            float used = 0;
+            while(accu+scale*(1-used)>=RECOVER_INTERVAL){
+                float percent = (RECOVER_INTERVAL-accu)/scale;
+                used += percent;
+                update(x*percent);
+                accu-=RECOVER_INTERVAL;
+                result.back().push_back(PathNode{roadID, result.back().back().timestamp+RECOVER_INTERVAL, toNodeDist});
+            }
+            update(x*(1-used));
+        }
         outID=node.prev;
     }
-    int lastOut=-1,rear=int(matched.size())-1,nextOut=rear,timeID=0,lastMatchDist=-1;
-    for(int p=rear;p>=0;--p){
-        auto &now=matched[p];
-        if(now.roadID!=lastOut){
-            lastOut=now.roadID;
-            match<<now.roadID<<' ';
-        }
-        if(p==nextOut){
-            for(int x=p-1;x>=0;--x)if(matched[x].roadID!=now.roadID){
-                nextOut=x;
-                break;
-            }
-            if(now.roadID==matched[nextOut].roadID)nextOut=-1;
-        }
-        while(timeID<timestamps.size()&&timestamps[timeID]<=now.timestamp){
-            int roadID; double toNodeDist;
-            if(timestamps[timeID]==now.timestamp){
-                roadID=now.roadID;
-                toNodeDist=now.toNodeDist;
-            }else{
-                //interpolation
-                auto &last = matched[p+1].timestamp<=interpolation.timestamp?matched[p+1]:interpolation;
-                long long turnTime = last.timestamp + TurnPrediction(last.roadID, now.roadID, last.toNodeDist, last.timestamp);
-                if(turnTime>timestamps[timeID]){ // not turn yet
-                    roadID=last.roadID;
-                    double len = VelPrediction(roadID, last.toNodeDist, last.timestamp) / RECOVER_INTERVAL * (timestamps[timeID]-turnTime) ;
-                    if(len<0)len=0;
-                    toNodeDist= len > last.toNodeDist ? 0 : last.toNodeDist - len;
-                }
-                else{
-                    roadID=now.roadID;
-                    double len = VelPrediction(roadID, RoadLen(now.roadID), last.timestamp+turnTime) / RECOVER_INTERVAL * (timestamps[timeID]-last.timestamp-turnTime) ;
-                    if(len<0)len=0;
-                    toNodeDist= len > RoadLen(now.roadID) ? 0 : RoadLen(now.roadID) - len;
-                }
-            }
-            Point recov{-1024,-1024};
-            for(int i=int(roads[roadID].seg.size())-1;i>=0;--i){
-                auto &seg=roads[roadID].seg[i];
-                if(seg.sumAfter >= toNodeDist - EPS){
-                    double per2 = seg.line.len>0 ? (seg.sumAfter - toNodeDist) / seg.line.len : 1;
-                    recov=seg.line.startLL+(seg.line.endLL-seg.line.startLL)*per2;
-                    break;
-                }
-            }
-            interpolation = PathNode{roadID,timestamps[timeID],toNodeDist};
-            if(!myAssert(!(recov==Point(-1024,-1024)), "(Bug) Bad valud: toNodeDist"))return;
-            recovery<<timestamps[timeID]<<' '<<recov.x<<' '<<recov.y<<' '<<roadID<<'\n';
-            ++timeID;
+    for(auto tr=result.rbegin();tr!=result.rend();++tr){
+        for(auto &x:*tr){
+            PointLL recov=FindLatLon(x.roadID,x.toNodeDist);
+            recovery<<x.timestamp<<' '<<recov.lat<<' '<<recov.lon<<' '<<x.roadID<<'\n';
         }
     }
+    recovery<<traceNow.back().timestamp<<' '<<lastPoint.lat<<' '<<lastPoint.lon<<' '<<lastID<<'\n';
+//    long long time=matched.back().timestamp;
+//    int roadID=matched.back().roadID;
+//    auto p=matched.rbegin();
+//    for(++p;p!=matched.rend();++p){
+//
+//
+//    }
+//
+//
+//    int lastOut=-1,rear=int(matched.size())-1,nextOut=rear,timeID=0;
+//    for(int p=rear;p>=0;--p){
+//        auto &now=matched[p];
+//        if(now.roadID!=lastOut){
+//            lastOut=now.roadID;
+//            match<<now.roadID<<' ';
+//        }
+//        if(p==nextOut){
+//            for(int x=p-1;x>=0;--x)if(matched[x].roadID!=now.roadID){
+//                    nextOut=x;
+//                    break;
+//                }
+//            if(now.roadID==matched[nextOut].roadID)nextOut=-1;
+//        }
+//        while(timeID<timestamps.size()&&timestamps[timeID]<=now.timestamp){
+//            // Every turn is recorded
+//            int roadID; float toNodeDist, vel;
+//            if(timestamps[timeID]==now.timestamp){
+//                roadID=now.roadID;
+//                toNodeDist=now.toNodeDist;
+//            }else{
+//                //interpolation
+//                auto &last = matched[p+1].timestamp>=interpolation.timestamp?matched[p+1]:interpolation;
+//                vel = last.vel;
+//                roadID = last.roadID;
+//                toNodeDist = last.toNodeDist;
+//                for(long long span=0; toNodeDist>0 && span<timestamps[timeID]-last.timestamp; ++span){
+//                    vel = VelPrediction(roadID, p==nextOut?-1:matched[nextOut].roadID, toNodeDist, last.vel, last.timestamp+span);
+//                    if(vel<0.01)vel=0.01;
+//                    toNodeDist -= vel;
+//                    if(toNodeDist<0){
+//                        toNodeDist=0;
+//                        break;
+//                    }
+//                }
+//            }
+//            PointLL recov{-1024,-1024};
+//            if(roads[roadID].seg.begin()->sumAfter < toNodeDist-EPS){
+//                if(toNodeDist > roads[roadID].seg.begin()->sumAfter+10)
+//                    cout<<"main.cpp: Wrong";
+//                else toNodeDist = roads[roadID].seg.begin()->sumAfter;
+//            }
+//            for(int i=int(roads[roadID].seg.size())-1;i>=0;--i){
+//                auto &seg=roads[roadID].seg[i];
+//                if(seg.sumAfter >= toNodeDist - EPS){
+//                    double per2 = seg.line.len>0 ? (seg.sumAfter - toNodeDist) / seg.line.len : 1;
+//                    recov=seg.line.startLL+(seg.line.endLL-seg.line.startLL)*per2;
+//                    break;
+//                }
+//            }
+//            interpolation = PathNode{roadID,timestamps[timeID], toNodeDist, vel};
+//            if(!myAssert(!(recov==PointLL(-1024,-1024)), "(Bug) Bad value: toNodeDist"))return;
+//            recovery<<timestamps[timeID]<<' '<<recov.lat<<' '<<recov.lon<<' '<<roadID<<'\n';
+//            ++timeID;
+//        }
+//    }
     recovery<<-id-1<<'\n';
     match<<'\n';
-    //safe_clog("[ID:"+to_string(id)+" size:"+to_string(traces[id].size())+"] Inference:"+ to_string(inferTime/(double)CLOCKS_PER_SEC)+" Traceback:"+
-    //                                                                                                          to_string((clock()-beginTime)/(double)CLOCKS_PER_SEC));
+    auto IPH = clock()-beginTM;
+    sPhaseTM += SPH, iPhaseTM += IPH;
 }
 
 std::atomic<int> progress(0);
-void print_progress(int lim) {
+void print_progress(int lim, int thread) {
     while (true) {
-        int current_progress = progress.load();
-        cout << "\rProgress: " << current_progress << "/" << lim << std::flush;
-        if (current_progress >= lim) break;
-        this_thread::sleep_for(chrono::milliseconds(1000));
+        int current = progress.load();
+        int per = (100 * current) / lim;
+        std::cout << "\r[";
+        for (int i = 0; i < 100; ++i) {
+            int interval = per<10?1:(per<100?2:3);
+            if(i < per)std::cout << "■";
+            else if(i == per)std::cout << per << '%';
+            else if(i >= per + interval+1)std::cout << ' ';
+        }
+        std::cout << "] (" << current << "/" << lim << ") ";
+        if(!current)current=1;
+        std::cout << "[Search " << sPhaseTM/(float)CLOCKS_PER_SEC/current/thread << "s, Interpolation " << iPhaseTM/(float)CLOCKS_PER_SEC/current/thread << "s]";
+        std::cout << std::flush;
+        if (current >= lim) break;
+        this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     cout << endl;
 }
@@ -318,11 +425,12 @@ void process(int start, int end){
 
 int main() {
     ios::sync_with_stdio(false);
-    ReadRoadnetOSM();
     int m;
-    ReadTraces_Real(m);
-    ReadCycles();
-    m=400;
+    ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
+    ReadTraces(TRACEFILE, m, traces, true, false);
+    ReadVectors();
+    LoadParam(PARAMFILE);
+    m=5000;
     const int num_threads = 15;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
@@ -331,7 +439,7 @@ int main() {
         int end = std::min(start + chunk_size, m);
         threads[i] = std::thread(process, start, end);
     }
-    std::thread progress_thread(print_progress, m);
+    std::thread progress_thread(print_progress, m, num_threads);
     for (auto& thread : threads) {
         thread.join();
     }
@@ -339,7 +447,7 @@ int main() {
 
     clog<<"Output..."<<endl;
     ofstream recovery("Recovery.txt");
-    recovery<<fixed<<setprecision(8);
+    recovery<<fixed<<setprecision(10);
     for(int i=0;i<m;++i)recovery<<recovStream[i].str();
     recovery.close();
     ofstream match("Full_Matched_Final.txt");
@@ -349,79 +457,17 @@ int main() {
     return 0;
 }
 
-void ReadRoadnetOSM(){
-    clog<<"Reading RoadNet..."<<endl;
-    ifstream edgeFile(EDGEFILE);
-    string line;
-    while(std::getline(edgeFile, line)){
-        std::istringstream iss(line);
-        int id, from, to, num;
-        iss >> id >> from >> to >> num;
-        // 特判对地图匹配没用的路
-        if(num == 1){
-            double skip;
-            iss>>skip>>skip;
-            continue;
-        }
-        else if(num == 2 && from == to){
-            double skip;
-            iss>>skip>>skip>>skip>>skip;
-            continue;
-        }
-        g.connect(from,id);
-        roads[id]=Road{-1,from,to};
-        Point last, lastLL;
-        for(int j=0;j<num;++j){
-            double lat, lon;
-            iss>>lat>>lon;
-            auto res = latLonToXY(lat,lon);
-            Point now{res.first, res.second};
-            if(j){
-                Point mid = (last+now)/2;
-                inGrid[int(mid.x / GRIDSIZE)][int(mid.y / GRIDSIZE)].push_back({id, j - 1});
-                roads[id].seg.push_back(Segments{Line{last, now, lastLL, {lat,lon}}, 0, 0});
-            }
-            last = now, lastLL={lat,lon};
-        }
-        auto &lines = roads[id].seg;
-        lines[0].sumPrev=lines[0].line.len;
-        lines[lines.size()-1].sumAfter=lines[lines.size()-1].line.len;
-        for(int x=1;x<lines.size();++x)lines[x].sumPrev=lines[x-1].sumPrev+lines[x].line.len;
-        for(int x=int(lines.size())-2;x>=0;--x)lines[x].sumAfter=lines[x+1].sumAfter+lines[x].line.len;
+void ReadVectors(){
+    clog<<"Reading Embedded Road Vectors..."<<endl;
+    ifstream file("../../road_vectors.txt");
+    int num_roads;
+    file >> num_roads;
+    for (int i = 0; i <= min(num_roads,PATH_NUM-1); ++i) {
+        int road_id;
+        file >> road_id;
+        std::vector<float> vector(vec_len+4);
+        for (int j = 0; j < vec_len; ++j) file >> vector[j];
+        road_vectors[road_id]=vector;
     }
-    edgeFile.close();
-
-    std::ifstream typeFile(TYPEFILE);
-    while(std::getline(typeFile, line)){
-        std::istringstream iss(line);
-        int id, type;
-        string typeName;
-        iss >> id >> typeName >> type;
-        roads[id].level=type;
-    }
-}
-
-void ReadTraces_Real(int &num){
-    clog<<"Reading Traces..."<<endl;
-    ifstream tr(TRACEFILE);
-    tr>>num;
-    for(int x=0;x<num;++x){
-        if(x%8192==0)clog<<x<<'\r'<<flush;
-        while(true){
-            long long stamp, roadID;
-            double lat, lon;
-            tr>>stamp;
-            if(stamp<1048576)break;
-            tr>>lat>>lon>>roadID;
-            auto res = latLonToXY(lat,lon);
-            traces[x].push_back({{res.first,res.second},stamp, lat, lon});
-        }
-    }
-}
-
-void ReadCycles(){
-    clog<<"Reading Traffic Data..."<<endl;
-    CSVFile lights("../../train_light_cycle_est.csv");
-    for(auto &line:lights)
-        cycles[(int)line["RoadID"]][(int)line["hour"]]=make_pair(line["BestCycle"],line["SecondCycle"]);
+    file.close();
 }

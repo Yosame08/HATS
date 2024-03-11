@@ -32,15 +32,32 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
                 const Segments &nowSeg = roads[i.roadID].seg[i.segID];
                 double dist = DistPointSeg(nowSeg.line, p, cross);
                 if(dist>lim)continue;
-                found.push_back({i.roadID,float(nowSeg.sumAfter-cross.dist(nowSeg.line.startLL)), PtMatchProb(dist)});
+                float toNodeDist = nowSeg.sumAfter-cross.dist(nowSeg.line.startLL);
+                found.push_back({i.roadID, toNodeDist<0?0:toNodeDist, PtMatchProb(dist)});
             }
         }
     }
 }
 
-float FindAngle(int roadID, double toNodeDist){
-    for(int i=roads[roadID].seg.size()-1; i>=0; --i){
-        if(roads[roadID].seg[i].sumAfter>=toNodeDist)return roads[roadID].angle[i];
+int FindSeg(int roadID, double toNodeDist){
+    auto seg=roads[roadID].seg;
+    if(toNodeDist>=seg[0].sumAfter||seg.size()==1)return 0;
+    int l=0,r=seg.size()-1;
+    while(l<r){
+        int mid=(l+r)>>1;
+        if(seg[mid].sumAfter>=toNodeDist)l=mid+1;
+        else r=mid;
     }
-    assert(false);
+    return l-1;
+}
+
+float FindAngle(int roadID, double toNodeDist){
+    return roads[roadID].angle[FindSeg(roadID,toNodeDist)];
+}
+
+PointLL FindLatLon(int roadID, float toNodeDist){
+    const auto &seg=roads[roadID].seg[FindSeg(roadID,toNodeDist)];
+    auto dir = seg.line.endLL - seg.line.startLL;
+    float ratio = (seg.sumAfter - toNodeDist) / seg.line.len;
+    return seg.line.startLL + dir * ratio;
 }

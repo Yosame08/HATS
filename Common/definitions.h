@@ -32,5 +32,6 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found
  * Find out the total degrees of turning from the starting point of the segment
  */
 float FindAngle(int roadID, double toNodeDist);
+PointLL FindLatLon(int roadID, float toNodeDist);
 
 #endif //MYDEFINES_H
