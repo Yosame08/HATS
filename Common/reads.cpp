@@ -20,34 +20,36 @@ void ReadRoadNet(const std::string& edgeFN, const std::string& typeFN, G&g, Road
         std::istringstream iss(line);
         int id, from, to, num;
         iss >> id >> from >> to >> num;
+        roads[id]=Road{-1,from,to};
         if(num==1){
             double lat,lon;
             iss>>lat>>lon;
             continue;
         }
-        g.connect(from,id);
-        roads[id]=Road{-1,from,to};
-        PointLL last;
+        PointLL last{-1024,-1024};
         for(int j=0;j<num;++j){
             double lat, lon;
             iss>>lat>>lon;
             PointLL now(lat, lon);
-            if(j) {
+            if(now==last)continue;
+            if(!(last==PointLL{-1024,-1024})) {
                 PointLL mid = (last+now)/2; // It's just an estimate. The margin of error is very small.
                 inGrid[int(mid.lat / GRIDSIZE)][int(mid.lon / GRIDSIZE)].push_back({id, j - 1});
-                roads[id].seg.push_back(Segments{Line(last, now), 0, 0});
-
-                if(j>1){
-                    Vector vFrom = latLonToXY(roads[id].seg[roads[id].seg.size()-2].line.startLL,last)-Point{0,0};
+                if(!roads[id].seg.empty()){
+                    Vector vFrom = latLonToXY(roads[id].seg.back().line.startLL,last)-Point{0,0};
                     Vector vTo = latLonToXY(now,last)-Point{0,0};
                     float turn = M_PI-Angle(vFrom,vTo);
                     roads[id].angle.push_back(roads[id].angle.back()+turn);
                 }
                 else roads[id].angle.push_back(0);
+                roads[id].seg.push_back(Segments{Line(last, now), 0, 0});
             }
             last = now;
         }
         auto &lines = roads[id].seg;
+        if(lines.empty())continue;
+        // There might be two points with the same latitude and longitude
+        g.connect(from,id);
         lines[0].sumPrev=lines[0].line.len;
         lines[lines.size()-1].sumAfter=lines[lines.size()-1].line.len;
         for(int x=1;x<lines.size();++x)lines[x].sumPrev=lines[x-1].sumPrev+lines[x].line.len;
@@ -70,7 +72,7 @@ void ReadTraces(const std::string& traceFN, int&m, std::vector<Trace>traces[], b
     ifstream tr(traceFN);
     long long repeat=1;
     for(m=0;!tr.eof();++m){
-        if(m&&m%8192==0)clog<<"\rRead "<<m/1024<<"K trajectories";
+        if(m&&m%10240==0)clog<<"\rRead "<<m/1024<<"K trajectories";
         bool ok=true;
         while(true){
             long long stamp, roadID;

@@ -29,21 +29,23 @@ float RoadLen(int roadID){
 
 double DifDistProb(double dif, unsigned long long span) {
     double ans;
-    if(dif<0)ans = exp(-dif / span / 0.7) / 0.7;
-    else ans = exp(-dif / span / 1.5) / 1.5;
+//    if(dif<0)ans = exp(-dif / span / 0.7) / 0.7;
+//    else ans = exp(-dif / span / 1.5) / 1.5;
+    ans = 0.05/sqrt(M_PI*2)/3 * exp(-dif*dif/(2*3*3));
+    if(dif>0) ans += 0.95/phi(250/400.0)/sqrt(M_PI*2)/400 * exp(-(dif-250)*(dif-250)/(2*400*400));
     return ans==0 ? 1e-300 : ans; // return 0 may cause error
 }
 
 double SearchDifDistProb(double dif, unsigned long long span) {
     if(dif<0)return 1;
-    double ans = exp(-dif / span / 1.5) / 1.5;
-    return ans==0 ? 1e-300 : ans; // return 0 may cause error
+    return DifDistProb(dif, span);
 }
 
 double TypeChangeProb(int _old, int _new){
     if(_old==-1)return pow(2,_new<=4?_new-4:4-_new);
     if(_new==_old)return 1;
-    return 0.5*pow(2,_new<=4?_new-4:4-_new);
+    return 0.2;
+    //return 0.5*pow(2,_new<=4?_new-4:4-_new);
 }
 
 /// @param angle RAD
@@ -66,6 +68,7 @@ double AngleProb(double angle, long long time){
 SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
     // seqPath is to restore nodes searched. Every node restore information about current road and which node is previous road
     vector<pair<PathNode,int>>seqPath;
+    //seqPath.reserve(4096);
     // Use DP to simplify searching process. Like Dijkstra but use "probability" as key for sort
     bool vis[PATH_NUM+1]{}; priority_queue<QueueInfo>q;
     // Initialize some const Value to prune search tree
@@ -101,7 +104,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             // 找到目的地，计算概率
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
-                if(allLen >= span * 45)continue;
+                if(allLen >= span * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
                 // 如果是终点，没有走到头，修改计算的概率
                 double outProb = tranProb * DifDistProb(allLen - greatCircle, span)
@@ -121,7 +124,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             // span/4步后，比起点前更靠近目的地（直线）
             if(top.level>span/4 && greatCircle<nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
-            if(totLen >= span * 45)continue;
+            if(totLen >= span * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
             q.push({top.level+1, (int)seqPath.size()-1, tranProb, totLen, angle});
@@ -141,41 +144,41 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 void TurnInterpolation(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, long long lastStamp, long long nowStamp, Path& pathOrigin){
     const long long span = nowStamp - lastStamp;
-    Path maxPath;
+    Path nowPath=pathOrigin;
     int minDif = 1000000000;
-    for(int start = 0; start <= 32; start+=4){
+    for(int start = 0; start <= 36; start+=3){
         long long tm = lastStamp;
         auto predict = [&](int roadID, int toID, float toNodeDist, float vel, double needPass){
-            while(needPass>1){
+            while(needPass>0.1){
                 vel = VelPrediction(roadID, toID, toNodeDist, vel, tm);
-                if(vel<0)vel=0;
+                if(vel<0.01)vel=0.01;
                 ++tm, needPass-=vel, toNodeDist-=vel;
             }
             return vel;
         };
-        Path path = pathOrigin;
         float toNodeDist = toNodeDistA, vel = start;
-        path[0].vel = start;
-        for(int i=1, roadID = fromRoad;i<path.size()-1;++i){
-            vel = predict(roadID, path[i].roadID, toNodeDist, vel, toNodeDist);
-            path[i].timestamp = tm;
-            path[i].vel = vel;
-            roadID=path[i].roadID;
+        nowPath[0].vel = start;
+        for(int i=1, roadID = fromRoad;i<nowPath.size()-1;++i){
+            vel = predict(roadID, nowPath[i].roadID, toNodeDist, vel, toNodeDist);
+            nowPath[i].timestamp = tm;
+            nowPath[i].vel = vel;
+            roadID=nowPath[i].roadID;
             toNodeDist=RoadLen(roadID);
         }
         vel = predict(toRoad, -1, RoadLen(toRoad), vel, fromNodeDistB);
-        path.back().vel = vel;
+        nowPath.back().vel = vel;
         long long calcSpan = tm-lastStamp;
         if(abs(calcSpan-span)<=minDif){
             double revise = 1/(calcSpan/(double)span);
-            for(int i=1;i<path.size()-1;++i)path[i].timestamp = lastStamp+(path[i].timestamp-lastStamp)*revise;
-            minDif=abs(calcSpan-span),maxPath=path;
+            for(int i=1;i<nowPath.size()-1;++i)nowPath[i].timestamp = lastStamp+(nowPath[i].timestamp-lastStamp)*revise;
+            minDif=abs(calcSpan-span),pathOrigin=nowPath;
         }
     }
-    pathOrigin=maxPath;
 }
 
+std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id, ostringstream &match, ostringstream &recovery){
+    auto beginTM = clock();
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovery<<"Failed\n"<<-id-1<<'\n';
@@ -245,6 +248,8 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
         for(int x=oldBegin;x<=oldEnd;++x)if(search[x].prob>maxProb)maxProb=search[x].prob;
         if(maxProb!=0)for(int x=oldBegin;x<=oldEnd;++x)search[x].prob/=maxProb;
     }
+    auto SPH = clock()-beginTM;
+    beginTM = clock();
     double maxProb=0;
     int outID;
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
@@ -287,7 +292,7 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
                 toNodeDist = last.toNodeDist;
                 for(long long span=0; toNodeDist>0 && span<timestamps[timeID]-last.timestamp; ++span){
                     vel = VelPrediction(roadID, p==nextOut?-1:matched[nextOut].roadID, toNodeDist, last.vel, last.timestamp+span);
-                    if(vel<0)vel=0;
+                    if(vel<0.01)vel=0.01;
                     toNodeDist -= vel;
                     if(toNodeDist<0){
                         toNodeDist=0;
@@ -296,6 +301,11 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
                 }
             }
             PointLL recov{-1024,-1024};
+            if(roads[roadID].seg.begin()->sumAfter < toNodeDist-EPS){
+                if(toNodeDist > roads[roadID].seg.begin()->sumAfter+10)
+                    cout<<"main.cpp: Wrong";
+                else toNodeDist = roads[roadID].seg.begin()->sumAfter;
+            }
             for(int i=int(roads[roadID].seg.size())-1;i>=0;--i){
                 auto &seg=roads[roadID].seg[i];
                 if(seg.sumAfter >= toNodeDist - EPS){
@@ -312,13 +322,15 @@ void solve(int id, ostringstream &match, ostringstream &recovery){
     }
     recovery<<-id-1<<'\n';
     match<<'\n';
+    auto IPH = clock()-beginTM;
+    sPhaseTM += SPH, iPhaseTM += IPH;
 }
 
 std::atomic<int> progress(0);
-void print_progress(int lim) {
+void print_progress(int lim, int thread) {
     while (true) {
-        int current_progress = progress.load();
-        int per = (100 * current_progress) / lim;
+        int current = progress.load();
+        int per = (100 * current) / lim;
         std::cout << "\r[";
         for (int i = 0; i < 100; ++i) {
             int interval = per<10?1:(per<100?2:3);
@@ -326,9 +338,11 @@ void print_progress(int lim) {
             else if(i == per)std::cout << per << '%';
             else if(i >= per + interval+1)std::cout << ' ';
         }
-        std::cout << "] (" << current_progress << "/" << lim << ")";
+        std::cout << "] (" << current << "/" << lim << ") ";
+        if(!current)current=1;
+        std::cout << "[Search " << sPhaseTM/(float)CLOCKS_PER_SEC/current/thread << "s, Interpolation " << iPhaseTM/(float)CLOCKS_PER_SEC/current/thread << "s]";
         std::cout << std::flush;
-        if (current_progress >= lim) break;
+        if (current >= lim) break;
         this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     cout << endl;
@@ -349,7 +363,7 @@ int main() {
     ReadVectors();
     LoadParam(PARAMFILE);
     m=5000;
-    const int num_threads = 16;
+    const int num_threads = 15;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -357,7 +371,7 @@ int main() {
         int end = std::min(start + chunk_size, m);
         threads[i] = std::thread(process, start, end);
     }
-    std::thread progress_thread(print_progress, m);
+    std::thread progress_thread(print_progress, m, num_threads);
     for (auto& thread : threads) {
         thread.join();
     }

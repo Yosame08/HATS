@@ -42,7 +42,7 @@ void TrafficHandler::init(const char* filename) {
         for(int i=0;i<=6;++i){
             getline(ss, field, ',');
             in[i] = stod(field);
-            if(in[i]<0){ //filter
+            if(in[i]<0){ // all parameters should be positive
                 ok=false;
                 break;
             }
@@ -53,25 +53,23 @@ void TrafficHandler::init(const char* filename) {
         if(id==last.trajid){
             if(fromID!=last.from){
                 stopped=false;
-                //assert(last.to==fromID);
                 addInterval(last.from,last.to,last.stamp+last.elapsed-2,last.stamp+last.elapsed+2,1);
                 double vel=last.dist/last.elapsed;
-                if(vel<1.5&&last.elapsed>5)
+                if(vel<1&&last.elapsed>5)
                     addInterval(last.from,last.to,last.stamp-last.dist/5,last.stamp+last.elapsed/2-last.dist/5,-1);//stop->move
             }
             else{
-                if(in[distance]<last.dist+2 && in[distance]<150){ // approaching crossing
+                double vel = (in[distance]-last.dist)/(stamp-last.stamp);
+                if(vel<-3)continue; // anomaly
+                if(in[distance]<200){ // approaching crossing
                     if(abs(in[distance]-last.dist)<2&&stamp-last.stamp>5){ // when sig1 vehicle stops for 5+ sec
                         stopped=true;
                         int correction = in[distance]/5;
                         addInterval(fromID,toID,last.stamp-correction,stamp-correction,-1);
                     }
-                    else if(stopped){ // when sig1 stopped vehicle moves
-                        double vel = (in[distance]-last.dist)/(stamp-last.stamp);
-                        if(vel>2){
-                            stopped=false;
-                            addInterval(fromID,toID,last.stamp+1-last.dist/5,stamp-1-in[distance]/5,1);
-                        }
+                    else if(stopped && vel>2){ // when sig1 stopped vehicle moves
+                        stopped=false;
+                        addInterval(fromID,toID,last.stamp+1-last.dist/5,stamp-1-in[distance]/5,1);
                     }
                 }
             }
@@ -96,8 +94,8 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp) const{
         if(l!=r)accu += scoreArr[r] * factor;
     }
     double result = 1/(1+exp(-accu));
-    double certainty = abs(result-0.5);
-    return certainty > abs(lights[roadID].at(toID)->percent - 0.5) ? result : lights[roadID].at(toID)->percent;
+    double certainty = abs(result-0.5), overall = lights[roadID].at(toID)->percent;
+    return certainty > abs(overall-0.5) ? result : overall;
 }
 
 void TrafficHandler::Traffic::stat() {

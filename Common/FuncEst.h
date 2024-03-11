@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+double phi(double x);
 double Estimate_wrap(double angle, int id);
 void ReadTurn(const std::string &turnFN);
 void FitParam();

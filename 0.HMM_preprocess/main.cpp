@@ -45,6 +45,8 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     const unsigned long long span = nowTr.timestamp - lastTr.timestamp;
     seqPath.push_back({{fromRoad, lastTr.timestamp, toNodeDistA}, -1});
     q.push(QInfo{1, 0, toNodeDistA, greatCircle, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
+    if(q.top().angle<0)
+        cout<<"Wrong";
     assert(q.top().angle>=0);
     SearchRes result{-1};
     bool fin=false;
@@ -57,16 +59,21 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         int node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
             if(vis[to])continue;
-            const PointLL &cross = roads[to].seg.front().line.startLL;
-            Vector vTo = latLonToXY(roads[to].seg.front().line.endLL,cross)-Point{0,0};
-            Vector vFrom = latLonToXY(roads[seqPath[top.node].first.roadID].seg.back().line.startLL,cross)-Point{0,0};
-            float angle = top.angle + M_PI - Angle(vFrom,vTo);
+            float angle = top.angle;
+            if(RoadLen(to)>5){
+                for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
+                    const int roadID = seqPath[oldnode].first.roadID;
+                    if(RoadLen(roadID)>5){
+                        angle += GetTurnAngle(roadID, to);
+                        break;
+                    }
+                }
+            }
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
                 if(allLen>=span*40)continue;
-                double outProb = DifDistProb(allLen - greatCircle);
                 seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
-                result = {outProb, allLen, angle+FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB),(int)seqPath.size()-1};
+                result = {DifDistProb(allLen - greatCircle), allLen, angle+FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB),(int)seqPath.size()-1};
                 fin=true;
                 break;
             }
@@ -108,30 +115,31 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
     vector<SearchNode>search;
-    vector<float>length;
+    vector<float>length, angles;
     int matched[traceNow.size()];
-    FindRoad(40, 40, traceNow[0].p, found);
+    FindRoad(30, 30, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
-        search.push_back({x.prob,x.toNodeDist,0,x.roadID,-1,0,{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
-        length.push_back(0);
+        search.push_back({x.prob,x.toNodeDist,x.roadID,-1,0,{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
+        length.push_back(0), angles.push_back(0);
     }
     int oldBegin=0, oldEnd=(int)search.size()-1;
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(40, 40, traceNow[i].p, found);
+        FindRoad(30, 30, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
+        double maxProb=-1;
         for(auto &now:found){
             SearchNode maxNode{0};
-            float maxNodeLen;
+            float maxNodeLen, maxAngle;
             for(int l=oldBegin;l<=oldEnd;++l){
                 SearchNode &old = search[l];
                 Path path;
-                double traceProb, ground;
-                float angle;
+                double traceProb;
+                float ground, angle;
                 if(old.roadID == now.roadID){
                     ground = old.toNodeDist - now.toNodeDist;
                     if(ground < -RECOVER_INTERVAL) continue;
@@ -144,33 +152,32 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                     SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
                                                   RoadLen(now.roadID) - now.toNodeDist, traceNow[i-1], traceNow[i]);
                     if(result.prob==-1)continue;
-                    traceProb = result.prob;
-                    path = result.path;
-                    ground = result.length;
-                    angle = result.angle;
+                    traceProb = result.prob, path = result.path;
+                    ground = result.length, angle = result.angle;
                 }
                 // now.prob -> difference between GPS point and fullPath point
                 double allProb = old.prob * pow(now.prob * traceProb, 1/2.0);
-                if(allProb > maxNode.prob)maxNode = {allProb, now.toNodeDist, angle, now.roadID, l, i, path}, maxNodeLen = ground;
+                if(allProb > maxNode.prob)maxNode = {allProb, now.toNodeDist, now.roadID, l, i, path}, maxNodeLen = ground, maxAngle = angle;
             }
-            if(maxNode.prob>0)search.push_back(maxNode), length.push_back(maxNodeLen);
+            if(maxNode.prob>0){
+                if(maxNode.prob>maxProb)maxProb=maxNode.prob;
+                search.push_back(maxNode), length.push_back(maxNodeLen), angles.push_back(maxAngle);
+            }
         }
         // Map imperfections can lead to HMM breaks, and in the preprocessing stage we filter out trajectories that cannot be matched directly
         if(!myAssert(search.size()-1!=oldEnd, "HMM break"))return;
-        oldBegin = oldEnd + 1, oldEnd = (int)search.size()-1;
-        double maxProb=-1;
-        for(int x=oldBegin;x<=oldEnd;++x)if(search[x].prob>maxProb)maxProb=search[x].prob;
         // Scale the maximum probability to 1 to avoid exceeding the precision of "double" if possible
         if(!myAssert(maxProb>0, "Too low probability"))return;
+        oldBegin = oldEnd + 1, oldEnd = (int)search.size()-1;
         for(int x=oldBegin;x<=oldEnd;++x)search[x].prob/=maxProb;
     }
+
     // Find the node with max probability
     double maxProb=0;
     int outID;
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
     // Get the full trace
     Path fullPath;
-
     int recent20[21]{};
     vector<float>difSingle[21];
     vector<float>turnStash[21];
@@ -182,20 +189,20 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             float totLen=0, totAngle=0;
             const auto &prev=search[node.prev];
             // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
-            if(node.toNodeDist>250&&prev.toNodeDist-node.toNodeDist<traceNow[node.pointID].timestamp-traceNow[prev.pointID].timestamp)recent20[0]=0;
+            if(node.toNodeDist>300&&prev.toNodeDist-node.toNodeDist<traceNow[node.pointID].timestamp-traceNow[prev.pointID].timestamp)recent20[0]=0;
             else{
                 recent20[0]=outID;
                 for(int i=1;i<=20;++i){
                     if(!recent20[i])break;
-                    auto &t=search[recent20[i]];
-                    totLen+=length[recent20[i]];
-                    float dif = totLen - traceNow[node.pointID].p.dist(traceNow[t.pointID].p);
-                    totAngle += t.angle;
+                    int &old=recent20[i];
+                    totLen += length[old];
+                    float dif = totLen - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
+                    totAngle += angles[old];
                     difSingle[i].push_back(dif);
                     turnStash[i].push_back(totAngle);
                 }
-                for(int i=20;i>=1;--i)recent20[i]=recent20[i-1];
             }
+            for(int i=20;i>=1;--i)recent20[i]=recent20[i-1];
         }
 
         if(!myAssert(!node.path.empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
@@ -223,9 +230,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                     break;
                 }
                 // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
-                else if(fullPath[x].toNodeDist>250&fullPath[x+1].toNodeDist-fullPath[x].toNodeDist<fullPath[x].timestamp-fullPath[x+1].timestamp){
-                    ignoreInfo=true;
-                }
+                else if(fullPath[x].toNodeDist>300&fullPath[x+1].toNodeDist-fullPath[x].toNodeDist<fullPath[x].timestamp-fullPath[x+1].timestamp)ignoreInfo=true;
             }
             if(now.roadID == fullPath[nextOut].roadID)nextOut=-1;
         }

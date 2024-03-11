@@ -9,11 +9,11 @@
 #define PATH_NUM 65536
 #define TIMEZONE 0
 #define SIGZ 4.07    // Related to the confidence of the GPS location point. The more reliable the location point is, the smaller σ_z should be.
-#define BETA 3 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
+#define BETA 2.5 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
-#define vec_len 10
-#define granularity 0.2 // for calculating the probability of turning
+#define vec_len 12
+#define granularity 0.1 // for calculating the probability of turning
 #include <vector>
 #include <unordered_map>
 #include <string>

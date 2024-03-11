@@ -20,7 +20,7 @@ using namespace std;
  */
 
 vector<int> times;
-const int mxSize = 90/granularity + 1;
+const int mxSize = 80/granularity + 1;
 const int mxMissing = 30;
 vector<double> freq[mxMissing + 1];
 enum pName{
@@ -56,7 +56,7 @@ void ReadTurn(const string &turnFN){
 }
 
 // code from: https://www.johndcook.com/blog/cpp_phi/
-long double phi(long double x)
+double phi(double x)
 {
     // constants
     long double a1 =  0.254829592;

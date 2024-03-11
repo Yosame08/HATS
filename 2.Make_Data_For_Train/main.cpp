@@ -62,10 +62,10 @@ void TaskData(const string &mode){
         vector<double>newLine;
         dataVel.append(newLine);
         long long timestamp = last["hour"]*3600+last["sec"];
+
         dataVel.back().push_back(road_vectors[roadID], last["distance"], distToTwo(last["hour"]),
-                                 traffics.query(roadID, toID, timestamp), lastVel, vel);
-        if(elapsed<3)lastVel = lastVel/2 + vel/2;
-        else lastVel = vel;
+                                 traffics.query(roadID, toID, timestamp), lastVel/2+vel/2, vel);
+        lastVel = vel;
     }
     dataVel.saveTo("data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
