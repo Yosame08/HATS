@@ -30,21 +30,21 @@ def CalcArea(_mu, _sigma):
 
 
 def func(x):
-    global sig1,S1,sig2,mu2,S2,sig3,mu3
+    global sig1,S1,sig2,mu2 # ,S2,sig3,mu3
     sqrt_2_PI = 2.506628274631
     x2 = x * x
     x_mu_2 = (x - mu2) * (x - mu2)
-    x_mu_3 = (x - mu3) * (x - mu3)
-    a2, b2, c2 = sig1 * sig1, sig2 * sig2, sig3 * sig3
-    return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + \
-        S2 / CalcArea(mu2, sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2)) + \
-        (1 - S1 - S2) / CalcArea(mu3, sig3) / (sqrt_2_PI * sig3) * exp(-x_mu_3 / (c2 * 2))
+    #x_mu_3 = (x - mu3) * (x - mu3)
+    a2, b2 = sig1 * sig1, sig2 * sig2
+    return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2))
+        #S2 / CalcArea(mu2, sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2)) + \
+        #(1 - S1 - S2) / CalcArea(mu3, sig3) / (sqrt_2_PI * sig3) * exp(-x_mu_3 / (c2 * 2))
 
 plt.figure()
 granularity = 0.01
 # 你的数据
 data = []
-with open("Param_out.txt", "r") as f:
+with open("cmake-build-debug/ParamTurn.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')
@@ -54,11 +54,12 @@ with open("Param_out.txt", "r") as f:
         param = info[:-1]
         for i in range(len(param)):
             param[i] = float(param[i])
-        sig1,S1,sig2,mu2,S2,sig3,mu3 = param
+        # sig1,S1,sig2,mu2,S2,sig3,mu3 = param
+        sig1,S1,sig2,mu2 = param
         x = []
         y = []
         i = 0
-        while i <= 80:
+        while i <= 90:
             x.append(i)
             i+=0.01
             y.append(func(i))

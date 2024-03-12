@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import chi2, norm
 from math import exp, sqrt
 
-granularity = 0.5
+granularity = 0.1
 statBegin = 0
 statEnd = 5000
 

@@ -215,6 +215,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     }
     int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear;
     bool ignoreInfo = false;
+    cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
         auto &now=fullPath[p];
         if(now.roadID!=lastOut){

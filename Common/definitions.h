@@ -13,7 +13,8 @@
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
 #define vec_len 12
-#define granularity 0.1 // for calculating the probability of turning
+#define granular_turn 0.1 // for calculating the probability of turning
+#define granular_len 1 // for calculating the probability of turning
 #include <vector>
 #include <unordered_map>
 #include <string>

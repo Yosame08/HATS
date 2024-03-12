@@ -19,13 +19,12 @@ bool init(){
 bool inited = init();
 
 extern vector<float> road_vectors[PATH_NUM];
-float VelPrediction(int roadID, int toID, float toNodeDist, float vel, long long timestamp){
+float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp){
     int hour=(int(timestamp%86400)/3600+TIMEZONE)%24;
     vector<float>inputs(road_vectors[roadID]);
     inputs[vec_len] = toNodeDist;
     inputs[vec_len+1] = (float)distToTwo(hour);
-    inputs[vec_len+2] = (float)traffics.query(roadID, toID, timestamp%86400);
-    inputs[vec_len+3] = vel;
+    inputs[vec_len+2] = (float)traffics.query(roadID, toID, timestamp%86400, toNodeDist);
     torch::Tensor input = torch::from_blob(inputs.data(), {1, static_cast<int64_t>(inputs.size())}, torch::kFloat);
     torch::Tensor output = moduleVel.forward({input}).toTensor();
     return output.item<float>();

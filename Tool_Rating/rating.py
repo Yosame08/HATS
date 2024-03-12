@@ -34,8 +34,8 @@ def OpenTraj(filename):
                 ret = []
                 last = int(info[0])
             else:
-                if int(info[0]) == timestamp:
-                    continue
+                # if int(info[0]) == timestamp:
+                #     continue
                 timestamp = int(info[0])
                 ret.append(info)
 
@@ -60,8 +60,8 @@ def calculate_metrics(file_true, file_pred):
         # if not (length == len(pred_list) and length > 0):
         #     continue
         assert length == len(pred_list) and length > 0
-        if id >= 5000:
-            break
+        # if id >= 800:
+        #     break
         id += 1
         number += length
         if id % 500 == 0:
@@ -125,6 +125,6 @@ def calculate_metrics(file_true, file_pred):
 
 # File Path
 file_true = '../test_output.txt'
-file_pred = '../RecoveryHistory/Recovery3.txt'
+file_pred = '../RecoveryHistory/Recovery6.txt'
 
 calculate_metrics(file_true, file_pred)

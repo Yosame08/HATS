@@ -4,13 +4,13 @@ from file import *
 
 file_map = 'edgeOSM_Porto.txt'
 file_in_sampled = '../test_sampled.txt'  # matched trace file name
-file_in_pred = '../RecoveryHistory/Recovery.txt'
+file_in_pred = '../RecoveryHistory/Recovery6.txt'
 file_in_true = '../test_output.txt'
 # file_out = '../test_sampled.txt'  # continuous roads file name
 file_generateM = 'Porto_Matched.html'
 
 specify = False
-track_from, track_to, track_step = 4, 20, 9  # define show how many traces on the map
+track_from, track_to, track_step = 12, 25, 6  # define show how many traces on the map
 indexes = [0]
 plot_indexes = []
 if specify:

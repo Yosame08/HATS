@@ -20,18 +20,20 @@ using namespace std;
  */
 
 vector<int> times;
-const int mxSize = 80/granularity + 1;
+const int mxTurn = 100 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
 const int mxMissing = 30;
-vector<double> freq[mxMissing + 1];
+vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
 enum pName{
-    sig1,S1,sig2,mu2,S2,sig3,mu3,Size
+    sig1,S1,sig2,mu2,Size//,S2,sig3,mu3,Size
 };
-double best_param[mxMissing + 1][Size], mulCache[mxMissing + 1][Size];
-double min_loss[mxMissing + 1];
+double bestTurn[mxMissing + 1][Size], cacheTurn[mxMissing + 1][Size], lossTurn[mxMissing + 1];
+double bestLen[mxMissing + 1][Size], cacheLen[mxMissing + 1][Size], lossLen[mxMissing + 1];
 const double sqrt_2_PI = sqrt(M_PI*2);
 
-void ReadTurn(const string &turnFN){
-    std::ifstream file(turnFN);
+void ReadStat(const string &filename, bool turn){
+    times.clear();
+    auto &op = turn?freqTurn:freqLen;
+    std::ifstream file(filename);
     std::string line;
     int tot=0, timeNow;
 
@@ -40,19 +42,25 @@ void ReadTurn(const string &turnFN){
         if (line.find("Secs:") != std::string::npos) {
             iss >> timeNow;
             times.emplace_back(timeNow);
-            freq[tot].reserve(mxSize);
+            op[tot].reserve(turn?mxTurn:mxLen);
         } else {
             float num;
             int cnt=0;
             while (iss >> num) {
-                ++freq[tot][int(num / timeNow / granularity)];
-                ++cnt;
+                if(turn){
+                    ++op[tot][int(num / timeNow / granular_turn)];
+                    ++cnt;
+                }
+                else if(num>=0){
+                    ++op[tot][int(num / granular_len)];
+                    ++cnt;
+                }
             }
-            for(int i=0;i<mxSize;++i)freq[tot][i]/= cnt;
+            for(int i=0; i < (turn?mxTurn:mxLen); ++i)op[tot][i]/= cnt;
             ++tot;
         }
     }
-    cout<<"Turning Info Read Finish"<<endl;
+    cout<<"Information Read Finish"<<endl;
 }
 
 // code from: https://www.johndcook.com/blog/cpp_phi/
@@ -80,128 +88,150 @@ double phi(double x)
 }
 
 double CalcArea(long double _mu, long double _sigma){
-    return phi((180-_mu)/_sigma) - phi(0-_mu/_sigma);
+    return 1 - phi(0-_mu/_sigma);
 }
 
 double Estimate(double x, const double param[], const double cache[]){
-    const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]), x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
-                 a2= param[sig1] * param[sig1], b2= param[sig2] * param[sig2], c2=param[sig3] * param[sig3];
+    const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]),//, x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
+                 a2 = param[sig1] * param[sig1], b2 = param[sig2] * param[sig2];//, c2=param[sig3] * param[sig3];
     return cache[S1] * exp(-x2 / (a2 * 2))
-         + cache[S2] * exp(-x_mu_2 / (b2 * 2))
-         + cache[mu3] * exp(-x_mu_3 / (c2 * 2));
+         + cache[mu2] * exp(-x_mu_2 / (b2 * 2));
+         //+ cache[mu3] * exp(-x_mu_3 / (c2 * 2));
 }
 
-void FindOneParam(pName name, double areaLeft, int id, double param[], const double step[], double origin[]){
-    double from = origin[name] - step[name] * 5, to = origin[name] + step[name] * 5;
+void FindOneParam(pName name, double areaLeft, int id, double param[], const double step[], double origin[], bool turn){
+    auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
+    auto &lossArr = turn?lossTurn:lossLen;
+    auto &bestArr = turn?bestTurn:bestLen;
+    const auto &freqArr = turn?freqTurn:freqLen;
+
+    double from = origin[name] - step[name] * 14, to = origin[name] + step[name] * 14;
     int cnt = 1;
     for(param[name]=from; param[name] <= to; param[name]+=step[name], ++cnt){
-        if(param[name] <= 1e-6)continue;
+        if(param[name] <= EPS)continue;
         double use = 0, loss, sum=0;
         switch (name) {
-            case mu3:
-                mulCache[id][mu3] = areaLeft / CalcArea(param[mu3], param[sig3]) / (sqrt_2_PI * param[sig3]);
+            case mu2:
+                cacheArr[mu2] = areaLeft / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
                 loss = 0;
-                for(int i=0;i<mxSize;++i){
-                    double est = Estimate(i, param, mulCache[id]);
-                    loss += abs(est-freq[id][i]);
+                for(int i=0; i < (turn?mxTurn:mxLen); ++i){
+                    double est = Estimate(i, param, cacheArr);
+                    loss += abs(est - freqArr[id][i]);
                     sum+=est;
                 }
-                if(loss<min_loss[id]){
-                    min_loss[id]=loss;
-                    for(int i=0;i<Size;++i)best_param[id][i]=param[i];
+                if(loss < lossArr[id]){
+                    lossArr[id]=loss;
+                    for(int i=0;i<Size;++i)bestArr[id][i]=param[i];
                 }
                 continue;
             case S1:
                 use = param[S1];
-                mulCache[id][S1] = use / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
+                cacheArr[S1] = use / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
                 if(use>=areaLeft)return;
                 break;
-            case S2:
-                use = param[S2];
-                mulCache[id][S2] = use / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-                if(use>=areaLeft)return;
-                break;
+//            case S2:
+//                use = param[S2];
+//                cacheTurn[id][S2] = use / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
+//                if(use>=areaLeft)return;
+//                break;
             default:
                 break;
         }
-        FindOneParam(static_cast<pName>(name + 1), areaLeft-use, id, param, step, origin);
+        FindOneParam(static_cast<pName>(name + 1), areaLeft-use, id, param, step, origin, turn);
     }
 }
 
 mutex coutMutex;
 
-void FindParam(int id){
+void FindParam(int id, bool turn){
+    auto &bestArr = turn?bestTurn:bestLen;
     double origin_param[Size], step[Size], param[Size];
-    static const double begin_param[] = {0.6, 0.6,2.5,  2.5,0.6, 20, 3};
-    static const double begin_step[]  = {0.1,0.08,0.4,0.4,0.08,2.5,0.5};
+    static const double begin_param[] = {1.5,0.5,  15,15};//,0.6, 20, 3};
+    static const double begin_step[]  = {0.1,0.035,1, 1};//,0.08,2.5,0.5};
     for(int i=0;i<Size;++i){
         origin_param[i]=begin_param[i];
         step[i]=begin_step[i];
         param[i]=origin_param[i];
     }
-    for(int i=1;i<=8;++i){
-        min_loss[id] = 1e300;
-        FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param);
+    for(int i=1;i<=12;++i){
+        if(turn)lossTurn[id] = 1e300;
+        else lossLen[id] = 1e300;
+        FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
         for(int j=0;j<Size;++j){
-            origin_param[j]=best_param[id][j];
+            origin_param[j]=bestArr[id][j];
             param[j]=origin_param[j];
             step[j]/=2;
         }
     }
     lock_guard<mutex> lock(coutMutex);
-    cout << "Min loss:" << min_loss[id] << '\n';
+    cout << id << ": Min loss = " << (turn?lossTurn[id]:lossLen[id]) << '\n';
 }
 
-void FitParam(){
+void FitParam(bool turn){
     std::vector<std::thread> threads;
     threads.reserve(times.size());
     for(int i=0;i<times.size();++i){
-        threads.emplace_back(FindParam, i);
+        threads.emplace_back(FindParam, i, turn);
     }
     for(auto &i:threads)i.join();
 }
 
-void Output(const string &outFN){
+void Output(const string &outFN, bool turn){
     ofstream out(outFN);
     for(int i=0;i<times.size();++i){
         out<<times[i]<<" Secs:\n";
-        for(auto j:best_param[i])out<<j<<' ';
+        for(auto j:(turn?bestTurn[i]:bestLen[i]))out << j << ' ';
         out<<'\n';
     }
     out.close();
 }
 
-vector<int> LoadParam(const string& paramFN){
-    std::ifstream file(paramFN);
+vector<int> LoadParam(const string& turnFN, const string& lenFN){
+    std::ifstream fileTurn(turnFN);
     std::string line;
     int time,tot=0;
-
-    while (std::getline(file, line)) {
+    while (std::getline(fileTurn, line)) {
         std::istringstream iss(line);
         if (line.find("Secs:") != std::string::npos) {
             iss >> time;
             times.push_back(time);
         } else {
             int cnt=0;
-            while(iss >> best_param[tot][cnt++]);
+            while(iss >> bestTurn[tot][cnt++]);
+            ++tot;
+        }
+    }
+    fileTurn.close();
+    std::ifstream fileLen(lenFN);
+    tot=0;
+    while (std::getline(fileLen, line)) {
+        std::istringstream iss(line);
+        if (line.find("Secs:") != std::string::npos)iss >> time;
+        else {
+            int cnt=0;
+            while(iss >> bestTurn[tot][cnt++]);
             ++tot;
         }
     }
 
     for(int i=0;i<times.size();++i){
-        mulCache[i][S1] = best_param[i][S1] / CalcArea(0,best_param[i][sig1]) / (sqrt_2_PI * best_param[i][sig1]);
-        mulCache[i][S2] = best_param[i][S2] / CalcArea(best_param[i][mu2],best_param[i][sig2]) / (sqrt_2_PI * best_param[i][sig2]);
-        double areaLeft = 1 - best_param[i][S1] - best_param[i][S2];
-        mulCache[i][mu3] = areaLeft / CalcArea(best_param[i][mu3],  best_param[i][sig3]) / (sqrt_2_PI * best_param[i][sig3]);
+        cacheTurn[i][S1] = bestTurn[i][S1] / CalcArea(0, bestTurn[i][sig1]) / (sqrt_2_PI * bestTurn[i][sig1]);
+        double areaLeft = 1 - bestTurn[i][S1];
+        cacheTurn[i][mu2] = areaLeft / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
+        cacheLen[i][S1] = bestLen[i][S1] / CalcArea(0, bestLen[i][sig1]) / (sqrt_2_PI * bestLen[i][sig1]);
+        areaLeft = 1 - bestLen[i][S1];
+        cacheLen[i][mu2] = areaLeft / CalcArea(bestLen[i][mu2], bestLen[i][sig2]) / (sqrt_2_PI * bestLen[i][sig2]);
+//        cacheTurn[i][S2] = bestTurn[i][S2] / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
+//        double areaLeft = 1 - bestTurn[i][S1] - bestTurn[i][S2];
+//        cacheTurn[i][mu3] = areaLeft / CalcArea(bestTurn[i][mu3], bestTurn[i][sig3]) / (sqrt_2_PI * bestTurn[i][sig3]);
     }
     clog<<"Params for predicting turning prob loaded"<<endl;
     //clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(1,8)<<' '<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(0,12)<<' '<<Estimate_wrap(1,12)<<' '<<Estimate_wrap(10,12)<<endl;
-    set<int> ret;
-    for(auto i:times)ret.insert(i);
     return times;
     //exit(0);
 }
 
-double Estimate_wrap(double angle, int id){
-    return Estimate(angle/granularity, best_param[id], mulCache[id]);
+double Estimate_wrap(double val, int id, bool turn){
+    if(turn) return Estimate(val / granular_turn, bestTurn[id], cacheTurn[id]);
+    else return Estimate(val / granular_len, bestLen[id], cacheLen[id]);
 }

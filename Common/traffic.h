@@ -24,7 +24,7 @@ private:
     void addInterval(int id, int to, int l, int r, short val);
 public:
     void init(const char* filename);
-    double query(int roadID, int toID, long long timestamp) const;
+    double query(int roadID, int toID, long long timestamp, float toNodeDist) const;
 };
 
 #endif //MAKE_DATA_TRAFFIC_H
