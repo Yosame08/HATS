@@ -5,8 +5,8 @@
 #include <cmath>
 #include <iostream>
 #include <sstream>
+#include <iomanip>
 #include <vector>
-#include <set>
 #include <thread>
 #include <mutex>
 
@@ -20,7 +20,7 @@ using namespace std;
  */
 
 vector<int> times;
-const int mxTurn = 100 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
+const int mxTurn = 4000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
 const int mxMissing = 30;
 vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
 enum pName{
@@ -36,6 +36,7 @@ void ReadStat(const string &filename, bool turn){
     std::ifstream file(filename);
     std::string line;
     int tot=0, timeNow;
+    float maxNum=0;
 
     while (std::getline(file, line)) {
         std::istringstream iss(line);
@@ -47,8 +48,9 @@ void ReadStat(const string &filename, bool turn){
             float num;
             int cnt=0;
             while (iss >> num) {
+                if(num>maxNum)maxNum=num;
                 if(turn){
-                    ++op[tot][int(num / timeNow / granular_turn)];
+                    ++op[tot][int(num / granular_turn)];
                     ++cnt;
                 }
                 else if(num>=0){
@@ -60,11 +62,11 @@ void ReadStat(const string &filename, bool turn){
             ++tot;
         }
     }
-    cout<<"Information Read Finish"<<endl;
+    cout<<"Information Read Finish, max = "<<maxNum<<endl;
 }
 
 // code from: https://www.johndcook.com/blog/cpp_phi/
-double phi(double x)
+long double phi(long double x)
 {
     // constants
     long double a1 =  0.254829592;
@@ -99,13 +101,18 @@ double Estimate(double x, const double param[], const double cache[]){
          //+ cache[mu3] * exp(-x_mu_3 / (c2 * 2));
 }
 
+double EstimateSP(double x, const double param[], const double cache[]){
+    const double x2 = x*x, a2 = param[sig1] * param[sig1];
+    return cache[S1] * exp(-x2 / (a2 * 2));
+}
+
 void FindOneParam(pName name, double areaLeft, int id, double param[], const double step[], double origin[], bool turn){
     auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
     auto &lossArr = turn?lossTurn:lossLen;
     auto &bestArr = turn?bestTurn:bestLen;
     const auto &freqArr = turn?freqTurn:freqLen;
 
-    double from = origin[name] - step[name] * 14, to = origin[name] + step[name] * 14;
+    double from = origin[name] - step[name] * 11, to = origin[name] + step[name] * 11;
     int cnt = 1;
     for(param[name]=from; param[name] <= to; param[name]+=step[name], ++cnt){
         if(param[name] <= EPS)continue;
@@ -146,21 +153,21 @@ mutex coutMutex;
 void FindParam(int id, bool turn){
     auto &bestArr = turn?bestTurn:bestLen;
     double origin_param[Size], step[Size], param[Size];
-    static const double begin_param[] = {1.5,0.5,  15,15};//,0.6, 20, 3};
-    static const double begin_step[]  = {0.1,0.035,1, 1};//,0.08,2.5,0.5};
+    static const double begin_param[] = {24,0.5, 240,120};//,0.6, 20, 3};
+    static const double begin_step[]  = {2, 0.04,20, 10};//,0.08,2.5,0.5};
     for(int i=0;i<Size;++i){
         origin_param[i]=begin_param[i];
         step[i]=begin_step[i];
         param[i]=origin_param[i];
     }
-    for(int i=1;i<=12;++i){
+    for(int i=1;i<=25;++i){
         if(turn)lossTurn[id] = 1e300;
         else lossLen[id] = 1e300;
         FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
         for(int j=0;j<Size;++j){
             origin_param[j]=bestArr[id][j];
             param[j]=origin_param[j];
-            step[j]/=2;
+            step[j]/=1.5;
         }
     }
     lock_guard<mutex> lock(coutMutex);
@@ -178,6 +185,7 @@ void FitParam(bool turn){
 
 void Output(const string &outFN, bool turn){
     ofstream out(outFN);
+    out<<fixed<<setprecision(8);
     for(int i=0;i<times.size();++i){
         out<<times[i]<<" Secs:\n";
         for(auto j:(turn?bestTurn[i]:bestLen[i]))out << j << ' ';
@@ -209,7 +217,7 @@ vector<int> LoadParam(const string& turnFN, const string& lenFN){
         if (line.find("Secs:") != std::string::npos)iss >> time;
         else {
             int cnt=0;
-            while(iss >> bestTurn[tot][cnt++]);
+            while(iss >> bestLen[tot][cnt++]);
             ++tot;
         }
     }
@@ -225,13 +233,15 @@ vector<int> LoadParam(const string& turnFN, const string& lenFN){
 //        double areaLeft = 1 - bestTurn[i][S1] - bestTurn[i][S2];
 //        cacheTurn[i][mu3] = areaLeft / CalcArea(bestTurn[i][mu3], bestTurn[i][sig3]) / (sqrt_2_PI * bestTurn[i][sig3]);
     }
-    clog<<"Params for predicting turning prob loaded"<<endl;
-    //clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(1,8)<<' '<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(0,12)<<' '<<Estimate_wrap(1,12)<<' '<<Estimate_wrap(10,12)<<endl;
+    clog<<"Params for predicting turning prob loaded. All estimated values below should be in range (0,1):"<<endl;
+    clog<<Estimate_wrap(0,16,true)<<' '<<Estimate_wrap(200,16,true)<<' '<<Estimate_wrap(600,16,true)
+        <<' '<<Estimate_wrap(0,16,false)<<' '<<Estimate_wrap(200,16,false)<<' '<<Estimate_wrap(600,16,false)<<endl;
     return times;
     //exit(0);
 }
 
 double Estimate_wrap(double val, int id, bool turn){
     if(turn) return Estimate(val / granular_turn, bestTurn[id], cacheTurn[id]);
-    else return Estimate(val / granular_len, bestLen[id], cacheLen[id]);
+    else if(val>=0)return Estimate(val / granular_len, bestLen[id], cacheLen[id]);
+    else return EstimateSP(val / granular_len, bestLen[id], cacheLen[id]);
 }

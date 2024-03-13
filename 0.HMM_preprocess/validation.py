@@ -33,7 +33,7 @@ def CalcArea(_mu, _sigma):
 
 # 你的数据
 data = {}
-with open("cmake-build-debug/valid_difDist_cnt.txt", "r") as f:
+with open("../valid_difDist_cnt.txt", "r") as f:
     inter = 0
     for line in f:
         info = line.split(' ')[:-1]

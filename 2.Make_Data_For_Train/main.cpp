@@ -29,11 +29,11 @@ TrafficHandler traffics;
 void TaskTurn(){
     ReadStat("../../train_turn_cnt.txt", true);
     FitParam(true);
-    Output("ParamTurn.txt",true);
+    Output(PARAMTURN,true);
     cout<<"Turn: Finish"<<endl;
     ReadStat("../../train_difDist_cnt.txt", false);
     FitParam(false);
-    Output("ParamLen.txt",false);
+    Output(PARAMLEN,false);
 }
 
 void TaskData(const string &mode){

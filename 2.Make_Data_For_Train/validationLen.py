@@ -44,7 +44,7 @@ plt.figure()
 granularity = 1
 # 你的数据
 data = []
-with open("../ParamTurn.txt", "r") as f:
+with open("../ParamLen.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')

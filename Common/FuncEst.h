@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-double phi(double x);
+long double phi(long double x);
 double Estimate_wrap(double val, int id, bool turn);
 void ReadStat(const std::string &filename, bool turn);
 void FitParam(bool turn);

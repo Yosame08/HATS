@@ -27,33 +27,9 @@ float RoadLen(int roadID){
     return roads[roadID].seg.back().sumPrev;
 }
 
-double DifDistProb(double dif, unsigned long long span) {
-    double ans;
-//    if(dif<0)ans = exp(-dif / span / 0.7) / 0.7;
-//    else ans = exp(-dif / span / 1.5) / 1.5;
-//    ans = sqrt(exp(-abs(dif) / BETA));
-    ans = 0.05/sqrt(M_PI*2)/3 * exp(-dif*dif/(2*3*3));
-    if(dif>0) ans += 0.95/phi(200/300.0)/sqrt(M_PI*2)/300 * exp(-(dif-200)*(dif-200)/(2*300*300));
-    return ans==0 ? 1e-300 : ans; // return 0 may cause error
-}
-
-double SearchDifDistProb(double dif, unsigned long long span) {
-    if(dif<0)return 1;
-    return DifDistProb(dif, span);
-}
-
-double TypeChangeProb(int _old, int _new){
-    if(_old==-1)return pow(2,_new<=4?_new-4:4-_new);
-    if(_new==_old)return 1;
-    return 0.2;
-    //return 0.5*pow(2,_new<=4?_new-4:4-_new);
-}
-
-/// @param angle RAD
-/// @brief Convert radians to angles and predict with the fitted function
 extern vector<int> times;
-double AngleProb(double angle, long long time){
-    int l,r;
+pair<int,int> FindIndex(unsigned long long time){
+    int l, r;
     auto f = lower_bound(times.begin(), times.end(), time);
     if(f==times.end())l=r=(int)times.size()-1; // time > maximum interval
     else if(f==times.begin()&&time<*f)l=r=0; // time < minimum interval
@@ -62,8 +38,33 @@ double AngleProb(double angle, long long time){
         r = f-times.begin();
         l = r - 1;
     }
-    if(l==r)return Estimate_wrap(angle*180/M_PI/time, l);
-    return (Estimate_wrap(angle*180/M_PI/time,l)+Estimate_wrap(angle*180/M_PI/time,r))/2;
+    return make_pair(l,r);
+}
+
+//double TypeChangeProb(int _old, int _new){
+//    if(_old==-1)return pow(2,_new<=4?_new-4:4-_new);
+////    if(_new==_old)return 1;
+////    return 0.2;
+//    //return 0.5*pow(2,_new<=4?_new-4:4-_new);
+//}
+
+/// @param angle RAD
+/// @brief Convert radians to angles and predict with the fitted function
+double AngleProb(double angle, unsigned long long time){
+    auto id = FindIndex(time);
+    if(id.first==id.second)return Estimate_wrap(angle*180/M_PI, id.first, true);
+    return (Estimate_wrap(angle*180/M_PI, id.first, true)+Estimate_wrap(angle*180/M_PI, id.second, true))/2;
+}
+
+double DifDistProb(double dif, unsigned long long time) {
+    auto id = FindIndex(time);
+    if(id.first==id.second)return Estimate_wrap(dif,id.first,false);
+    return (Estimate_wrap(dif,id.first,false)+Estimate_wrap(dif,id.second,false))/2;
+}
+
+double SearchDifDistProb(double dif, unsigned long long time) {
+    if(dif<0)return 1;
+    return DifDistProb(dif, time);
 }
 
 SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
@@ -78,7 +79,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     const unsigned long long span = nowTr.timestamp - lastTr.timestamp;
     // Set starting state
     seqPath.push_back({{fromRoad, lastTr.timestamp, toNodeDistA}, -1});
-    q.push(QueueInfo{1, (int)seqPath.size()-1, TypeChangeProb(-1,roads[fromRoad].level), toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
+    q.push(QueueInfo{1, (int)seqPath.size()-1, 1, toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
     SearchRes result{-1};
 
     while(!q.empty()){
@@ -106,8 +107,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
                 if(allLen >= span * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
                 // 如果是终点，没有走到头，修改计算的概率
-                double outProb = /*tranProb **/ DifDistProb(allLen - greatCircle, span)
-                                          * AngleProb(angle, span);
+                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span);
                 if(outProb>result.prob){
                     seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(toRoad)}, top.node});
                     result = {outProb, allLen, angle, (int)seqPath.size()-1};
@@ -116,7 +116,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             }
             float totLen = top.len + RoadLen(to);
             angle += FindAngle(to,0);
-            double tranProb = 1 * SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span);
+//            double tranProb = ;
             // 检查应该入队还是被剪枝
             // 各种剪枝：最多执行span/2步，也就是最快允许每2秒换一条路段
             if(top.level + 1 > span/2)continue;
@@ -126,7 +126,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             if(totLen >= span * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
-            q.push({top.level+1, (int)seqPath.size()-1, tranProb, totLen, angle});
+            q.push({top.level+1, (int)seqPath.size()-1, SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), totLen, angle});
         }
     }
     // 搜索结束
@@ -342,8 +342,8 @@ int main() {
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
-    LoadParam(PARAMFILE);
-    //m=800;
+    LoadParam(PARAMTURN,PARAMLEN);
+    m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);

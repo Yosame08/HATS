@@ -4,7 +4,8 @@
 #define EDGEFILE "../../edgeOSM_Porto.txt"
 #define TYPEFILE "../../wayTypeOSM_Porto.txt"
 #define TRACEFILE "../../test_sampled.txt"
-#define PARAMFILE "../../Param_out.txt"
+#define PARAMTURN "../../ParamTurn.txt"
+#define PARAMLEN "../../ParamLen.txt"
 #define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
 #define PATH_NUM 65536
 #define TIMEZONE 0
@@ -13,7 +14,7 @@
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
 #define vec_len 12
-#define granular_turn 0.1 // for calculating the probability of turning
+#define granular_turn 1 // for calculating the probability of turning
 #define granular_len 1 // for calculating the probability of turning
 #include <vector>
 #include <unordered_map>

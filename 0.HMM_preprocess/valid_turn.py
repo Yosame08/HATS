@@ -3,7 +3,7 @@ import numpy as np
 from scipy.stats import chi2, norm
 from math import exp, sqrt
 
-granularity = 0.1
+granularity = 1
 statBegin = 0
 statEnd = 5000
 
@@ -18,7 +18,8 @@ with open("../train_turn_cnt.txt", "r") as f:
             data[inter] = [0 for _ in range(int((statEnd - statBegin) * (1 / granularity)) + 1)]
             continue
         for i in range(len(info)):
-            val = float(info[i]) / inter / granularity
+            #val = float(info[i]) / inter / granularity
+            val = float(info[i]) / granularity
             if val >= 0:
                 data[inter][int(val)] += 1
 
