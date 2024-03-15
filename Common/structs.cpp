@@ -12,3 +12,10 @@ double Vector::length() const {
 
 Vector::Vector(const Point &p):x(p.x),y(p.y){}
 
+unsigned BitInt::chk(unsigned x) {
+    return v[x>>5] & (1<<(x&0x1F));
+}
+
+void BitInt::set(unsigned x) {
+    v[x>>5] |= 1<<(x&0x1F);
+}

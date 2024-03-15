@@ -11,21 +11,22 @@ using std::cout;
 using std::endl;
 
 torch::jit::Module moduleVel = torch::jit::load("../../model_vel.pt");
-TrafficHandler traffics;
-bool init(){
-    traffics.init("../../train_traffic_data.csv");
-    return false;
-}
-bool inited = init();
+TrafficHandler traffics("../../train_traffic_data.csv");
 
 extern vector<float> road_vectors[PATH_NUM];
-float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp){
+float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp, int &red){
     int hour=(int(timestamp%86400)/3600+TIMEZONE)%24;
     vector<float>inputs(road_vectors[roadID]);
     inputs[vec_len] = toNodeDist;
     inputs[vec_len+1] = (float)distToTwo(hour);
-    inputs[vec_len+2] = (float)traffics.query(roadID, toID, timestamp%86400, toNodeDist);
+    inputs[vec_len+2] = std::min(traffics.query(roadID, toID, timestamp%86400, toNodeDist) + red/1000.0, 1.0);
     torch::Tensor input = torch::from_blob(inputs.data(), {1, static_cast<int64_t>(inputs.size())}, torch::kFloat);
     torch::Tensor output = moduleVel.forward({input}).toTensor();
-    return output.item<float>();
+    auto out = output.item<float>();
+    if(out<1){
+        ++red;
+        if(out<0.01)out=0.01;
+    }
+    else red = 0;
+    return out;
 }

@@ -16,13 +16,13 @@ void revise(long long &x) {
 }
 
 void TrafficHandler::addInterval(int id, int to, int l, int r, short val) {
-    if(l>r){
+    revise(l),revise(r);
+    if(l>r&&!(l>86200&&r<200)){
         std::cerr<<"(Bug)Error in addInterval"<<endl;
         return;
     }
     if(!lights[id].count(to))lights[id][to] = new Traffic();
     auto &modify = lights[id][to];
-    revise(l),revise(r);
     if(l<=r)modify->score[l]+=val, modify->score[r + 1]-=val;
     else modify->score[l]+=val, modify->score[0]+=val, modify->score[r + 1]-=val;
     modify->percent+=val;
@@ -39,7 +39,7 @@ void TrafficHandler::init(const char* filename) {
     bool stopped=false;
     while(getline(dataFile, line)){
         static int cnt=0;
-        if(++cnt%4194304==0)clog<<cnt/1048576<<"M Traffic lines"<<endl;
+        if(++cnt%1048576==0)clog<<'\r'<<cnt/1048576<<"M Traffic lines";
         std::stringstream ss(line);
         string field;
         double in[7];
@@ -59,33 +59,35 @@ void TrafficHandler::init(const char* filename) {
             if(fromID!=last.from){
                 stopped=false;
                 addInterval(last.from,last.to,last.stamp+last.elapsed-2,last.stamp+last.elapsed+2,2);
-                double vel=last.dist/last.elapsed;
-                if(vel<1&&last.elapsed>5)
-                    addInterval(last.from,last.to,last.stamp-last.dist/5,last.stamp+last.elapsed/2-last.dist/5,-1);//stop->move
+//                double vel=last.dist/last.elapsed;
+//                if(vel<1&&last.elapsed>5)
+//                    addInterval(last.from,last.to,last.stamp-last.dist/5,last.stamp+last.elapsed/2-last.dist/5,-1);//stop->move
             }
             else{
                 double vel = (last.dist-in[distance])/(stamp-last.stamp);
-                if(vel<-3){
+                if(vel<-2){
                     last={id,fromID,toID,stamp,passed,in[distance]};
                     continue; // anomaly
                 }
-                if(in[distance]<200){ // approaching crossing
-                    if(vel<=1&&stamp-last.stamp>5){ // when sig1 vehicle stops for 5+ sec
+                if(in[distance]<300){ // approaching crossing
+                    if(vel<=1){ // when sig1 vehicle stops for 5+ sec
                         stopped=true;
                         int correction = in[distance]/5;
+                        //if(last.stamp-correction>stamp-correction)cout<<"1 "<< last.stamp-correction << ' ' << stamp-correction<<endl;
                         addInterval(fromID,toID,last.stamp-correction,stamp-correction,-2);
                     }
                     else if(stopped && vel>2){ // when sig1 stopped vehicle moves
                         stopped=false;
-                        addInterval(fromID,toID,last.stamp+1-last.dist/5,stamp-1-in[distance]/5,1);
+                        //if(last.stamp-last.dist/5>stamp-in[distance]/5)cout<<"2 "<< last.stamp-last.dist/5 << ' ' << stamp-in[distance]/5;
+                        addInterval(fromID,toID,last.stamp-last.dist/5,stamp-in[distance]/5,1);
                     }
                 }
             }
-        }else if(last.trajid!=-1)stopped=false;
+        }else stopped=false;
         if(fromID>=lim)lim=fromID+1;
         last={id,fromID,toID,stamp,passed,in[distance]};
     }
-    clog<<"Preprocessing..."<<endl;
+    clog<<"\nPreprocessing..."<<endl;
     for(int i=0;i<=PATH_NUM;++i)for(auto x:lights[i])x.second->stat();
     clog<<"File read finish"<<endl;
 }
@@ -102,7 +104,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
     if(!lights[roadID].count(toID))return 1/(1+exp(-1));
     double accu=0;
     const auto &scoreArr = lights[roadID].at(toID)->score;
-    for(int bias=0;bias<=5;++bias){
+    for(int bias=0;bias<=10;++bias){
         int l = timestamp - bias, r = timestamp + bias;
         revise(l), revise(r);
         double factor = Normal(bias);

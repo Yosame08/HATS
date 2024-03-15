@@ -37,19 +37,19 @@ output_size = 1
 # 定义模型
 model = nn.Sequential(
     #nn.Linear(input_size, 512), nn.ELU(),
-    nn.Linear(input_size, 256), nn.ELU(),
-    nn.Linear(256, 128), nn.ELU(),
-    nn.Linear(128, 64), nn.ELU(),
-    nn.Linear(64, 32), nn.ELU(),
-    nn.Linear(32, 16), nn.ELU(),
-    nn.Linear(16, 8), nn.ELU(),
-    nn.Linear(8, output_size), nn.ELU(),
+    nn.Linear(input_size, 512), nn.ELU(),
+    nn.Linear(512, 256), nn.ELU(),
+    nn.Linear(256, 256), nn.ELU(),
+    nn.Linear(256, 64), nn.ELU(),
+    nn.Linear(64, 64), nn.ELU(),
+    nn.Linear(64, 16), nn.ELU(),
+    nn.Linear(16, output_size), nn.ELU(),
     # nn.Linear(4, output_size)
 ).to(device)
 
 # 定义损失函数和优化器
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=2e-4, weight_decay=2e-5)
+optimizer = optim.Adam(model.parameters(), lr=5e-4, weight_decay=1e-4)
 # scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.9)
 
 print("Start training...")

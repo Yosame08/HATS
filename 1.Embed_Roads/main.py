@@ -82,7 +82,7 @@ for seq in sequences:
 
 vec_size = 8
 # 使用Word2Vec训练
-model = Word2Vec(sequences, vector_size=vec_size, window=5, min_count=1, workers=16, sg=0)
+model = Word2Vec(sequences, vector_size=vec_size, window=3, min_count=1, workers=8, sg=0)
 
 # 保存模型
 model.save("road_embedding.model")

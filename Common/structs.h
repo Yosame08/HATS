@@ -2,6 +2,7 @@
 #define STRUCTS_H
 
 #include <vector>
+#include "definitions.h"
 
 struct G{
     std::vector<int>node[1048576];
@@ -115,7 +116,7 @@ struct SearchNode{
     double prob;
     float toNodeDist;
     int roadID,prev,pointID;
-    Path path;
+    Path* path;
 };
 
 struct GridInfo{
@@ -132,19 +133,85 @@ struct SearchRes{
     double prob;
     float length, angle;
     int node;
-    Path path;
+    Path* path;
 };
 
 struct QueueInfo{
-    int level, node;
     double accuProb;
-    float len, angle;
+    int node;
     bool operator <(const QueueInfo &b) const{return accuProb < b.accuProb;}
+};
+
+struct QueueInfo2{
+    PathNode pNode;
+    int prev, level;
+    float len, angle;
 };
 
 struct QInfo{
     int level, node;
     float len, toDstLen, angle;
     bool operator <(const QInfo &b) const{return len+toDstLen > b.len+b.toDstLen;}
+};
+
+struct BitInt{
+    unsigned v[(PATH_NUM>>5)+1]{};
+    unsigned chk(unsigned x);
+    void set(unsigned x);
+};
+
+#include <thread>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+
+class ThreadPool {
+public:
+    ThreadPool(size_t threads) : stop(false) {
+        for(size_t i = 0;i<threads;++i)
+            workers.emplace_back([this] {
+                for(;;) {
+                    std::function<void()> task;
+                    {
+                        std::unique_lock<std::mutex> lock(this->queue_mutex);
+                        this->condition.wait(lock, [this]{ return this->stop || !this->tasks.empty(); });
+                        if(this->stop && this->tasks.empty())
+                            return;
+                        task = std::move(this->tasks.front());
+                        this->tasks.pop();
+                    }
+                    task();
+                }
+            });
+    }
+
+    template<class F>
+    void enqueue(F&& f) {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            if(stop)
+                throw std::runtime_error("enqueue on stopped ThreadPool");
+            tasks.emplace(std::forward<F>(f));
+        }
+        condition.notify_one();
+    }
+
+    ~ThreadPool() {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            stop = true;
+        }
+        condition.notify_all();
+        for(std::thread &worker: workers)
+            worker.join();
+    }
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queue_mutex;
+    std::condition_variable condition;
+    bool stop;
 };
 #endif //STRUCTS_H

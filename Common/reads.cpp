@@ -72,7 +72,7 @@ void ReadTraces(const std::string& traceFN, int&m, std::vector<Trace>traces[], b
     ifstream tr(traceFN);
     long long repeat=1;
     for(m=0;!tr.eof();++m){
-        if(m&&m%10240==0)clog<<"\rRead "<<m/1024<<"K trajectories";
+        if(m&&m%1024==0)clog<<"\rRead "<<m/1024<<"K trajectories";
         bool ok=true;
         while(true){
             long long stamp, roadID;

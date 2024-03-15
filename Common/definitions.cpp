@@ -5,6 +5,7 @@
 #include <mutex>
 #include <cassert>
 #include <iostream>
+#include <queue>
 using namespace std;
 
 extern Road roads[];
@@ -31,9 +32,11 @@ double PtMatchProb(double dist){
 }
 
 void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
+    unordered_map<int,priority_queue<pair<double,float>>> tmp;
     int gridX= int(p.lat / GRIDSIZE), gridY= int(p.lon / GRIDSIZE);
-    for(int lim = dFrom; found.empty() && lim <= dTo; lim+=dFrom){
-        for(int lat = gridX - 15; lat <= gridX + 15; ++lat)for(int lon = gridY - 25; lon <= gridY + 25; ++lon){
+    bool ok = false;
+    for(int lim = dFrom; lim <= dTo && !ok; lim+=20){
+        for(int lat = gridX - 20; lat <= gridX + 20; ++lat)for(int lon = gridY - 25; lon <= gridY + 25; ++lon){
             if((!inGrid.count(lat)) || (!inGrid.at(lat).count(lon)))continue;
             for(auto &i:inGrid.at(lat).at(lon)){
                 PointLL cross;
@@ -41,8 +44,18 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
                 double dist = DistPointSeg(nowSeg.line, p, cross);
                 if(dist>lim)continue;
                 float toNodeDist = nowSeg.sumAfter-cross.dist(nowSeg.line.startLL);
-                found.push_back({i.roadID, toNodeDist<0?0:toNodeDist, PtMatchProb(dist)});
+                tmp[i.roadID].push({PtMatchProb(dist),toNodeDist<0?0:toNodeDist});
+                ok = true;
             }
+        }
+    }
+    for(auto &f:tmp){
+        double high=f.second.top().first;
+        while(!f.second.empty()){
+            auto &t=f.second.top();
+            if(t.first/high>=EPS)found.push_back({f.first, t.second, t.first});
+            else break;
+            f.second.pop();
         }
     }
 }
@@ -50,7 +63,7 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
 int FindSeg(int roadID, double toNodeDist){
     auto seg=roads[roadID].seg;
     if(toNodeDist>=seg[0].sumAfter||seg.size()==1)return 0;
-    int l=0,r=seg.size()-1;
+    int l=0,r=int(seg.size()-1);
     while(l<r){
         int mid=(l+r)>>1;
         if(seg[mid].sumAfter>=toNodeDist)l=mid+1;

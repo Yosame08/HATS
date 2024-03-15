@@ -63,7 +63,7 @@ with open("../ParamTurn.txt", "r") as f:
             x.append(i)
             i+=1
             y.append(func(i))
-        plt.plot(x, y, marker='x', color=(time/300, 0, 0), linewidth=1, markersize=0)
+        plt.plot(x, y, marker='x', color=(time/360, 0, 0), linewidth=1, markersize=0)
 	    
 
 # fit = [func(i) for i in range(len(data))]

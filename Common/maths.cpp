@@ -36,7 +36,7 @@ Point latLonToXY(const PointLL &p, const PointLL &origin) {
     double x = distance * cos(bearing);
     double y = distance * sin(bearing);
 
-    return Point(x, y);
+    return {x, y};
 }
 double Square(double x) { return x * x; }
 double PDistance(const Point &a, const Point &b) { return sqrt(Square(a.y - b.y) + Square(a.x - b.x)); }

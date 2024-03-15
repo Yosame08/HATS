@@ -1,7 +1,7 @@
 #ifndef MAKE_DATA_TRAFFIC_H
 #define MAKE_DATA_TRAFFIC_H
 
-#define PATH_NUM 65536
+#include "definitions.h"
 #include <unordered_map>
 class TrafficHandler{
 private:
@@ -22,8 +22,11 @@ private:
     std::unordered_map<int,Traffic*> lights[PATH_NUM+1];
     int lim{};
     void addInterval(int id, int to, int l, int r, short val);
-public:
     void init(const char* filename);
+public:
+    explicit TrafficHandler(const char* filename){
+        init(filename);
+    }
     double query(int roadID, int toID, long long timestamp, float toNodeDist) const;
 };
 

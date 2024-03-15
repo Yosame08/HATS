@@ -1,5 +1,6 @@
 #include "FuncEst.h"
 #include "definitions.h"
+#include "structs.h"
 #include <fstream>
 #include <string>
 #include <cmath>
@@ -20,7 +21,7 @@ using namespace std;
  */
 
 vector<int> times;
-const int mxTurn = 4000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
+const int mxTurn = 5000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
 const int mxMissing = 30;
 vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
 enum pName{
@@ -50,10 +51,12 @@ void ReadStat(const string &filename, bool turn){
             while (iss >> num) {
                 if(num>maxNum)maxNum=num;
                 if(turn){
+                    if(num / granular_turn >= mxTurn)continue;
                     ++op[tot][int(num / granular_turn)];
                     ++cnt;
                 }
                 else if(num>=0){
+                    if(num / granular_len >= mxLen)continue;
                     ++op[tot][int(num / granular_len)];
                     ++cnt;
                 }
@@ -90,7 +93,7 @@ long double phi(long double x)
 }
 
 double CalcArea(long double _mu, long double _sigma){
-    return 1 - phi(0-_mu/_sigma);
+    return 1 - (double)phi(0-_mu/_sigma);
 }
 
 double Estimate(double x, const double param[], const double cache[]){
@@ -112,7 +115,7 @@ void FindOneParam(pName name, double areaLeft, int id, double param[], const dou
     auto &bestArr = turn?bestTurn:bestLen;
     const auto &freqArr = turn?freqTurn:freqLen;
 
-    double from = origin[name] - step[name] * 11, to = origin[name] + step[name] * 11;
+    double from = origin[name] - step[name] * 12, to = origin[name] + step[name] * 12;
     int cnt = 1;
     for(param[name]=from; param[name] <= to; param[name]+=step[name], ++cnt){
         if(param[name] <= EPS)continue;
@@ -124,7 +127,7 @@ void FindOneParam(pName name, double areaLeft, int id, double param[], const dou
                 for(int i=0; i < (turn?mxTurn:mxLen); ++i){
                     double est = Estimate(i, param, cacheArr);
                     loss += abs(est - freqArr[id][i]);
-                    sum+=est;
+                    sum += est;
                 }
                 if(loss < lossArr[id]){
                     lossArr[id]=loss;
@@ -135,12 +138,6 @@ void FindOneParam(pName name, double areaLeft, int id, double param[], const dou
                 use = param[S1];
                 cacheArr[S1] = use / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
                 if(use>=areaLeft)return;
-                break;
-//            case S2:
-//                use = param[S2];
-//                cacheTurn[id][S2] = use / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-//                if(use>=areaLeft)return;
-//                break;
             default:
                 break;
         }
@@ -153,21 +150,21 @@ mutex coutMutex;
 void FindParam(int id, bool turn){
     auto &bestArr = turn?bestTurn:bestLen;
     double origin_param[Size], step[Size], param[Size];
-    static const double begin_param[] = {24,0.5, 240,120};//,0.6, 20, 3};
-    static const double begin_step[]  = {2, 0.04,20, 10};//,0.08,2.5,0.5};
+    static const double begin_param[] = {100,0.5, 100,100};//,0.6, 20, 3};
+    static const double begin_step[]  = {10, 0.04,10, 10};//,0.08,2.5,0.5};
     for(int i=0;i<Size;++i){
         origin_param[i]=begin_param[i];
         step[i]=begin_step[i];
         param[i]=origin_param[i];
     }
-    for(int i=1;i<=25;++i){
+    for(int i=1;i<=30;++i){
         if(turn)lossTurn[id] = 1e300;
         else lossLen[id] = 1e300;
         FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
         for(int j=0;j<Size;++j){
             origin_param[j]=bestArr[id][j];
             param[j]=origin_param[j];
-            step[j]/=1.5;
+            step[j]/=2;
         }
     }
     lock_guard<mutex> lock(coutMutex);
@@ -175,12 +172,16 @@ void FindParam(int id, bool turn){
 }
 
 void FitParam(bool turn){
-    std::vector<std::thread> threads;
-    threads.reserve(times.size());
+    ThreadPool pool(std::thread::hardware_concurrency()); // 创建线程池，线程数等于CPU线程数
     for(int i=0;i<times.size();++i){
-        threads.emplace_back(FindParam, i, turn);
+        pool.enqueue([i, turn](){ FindParam(i, turn); }); // 将任务添加到线程池
     }
-    for(auto &i:threads)i.join();
+//    std::vector<std::thread> threads;
+//    threads.reserve(times.size());
+//    for(int i=0;i<times.size();++i){
+//        threads.emplace_back(FindParam, i, turn);
+//    }
+//    for(auto &i:threads)i.join();
 }
 
 void Output(const string &outFN, bool turn){
@@ -224,14 +225,9 @@ vector<int> LoadParam(const string& turnFN, const string& lenFN){
 
     for(int i=0;i<times.size();++i){
         cacheTurn[i][S1] = bestTurn[i][S1] / CalcArea(0, bestTurn[i][sig1]) / (sqrt_2_PI * bestTurn[i][sig1]);
-        double areaLeft = 1 - bestTurn[i][S1];
-        cacheTurn[i][mu2] = areaLeft / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
+        cacheTurn[i][mu2] = (1 - bestTurn[i][S1]) / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
         cacheLen[i][S1] = bestLen[i][S1] / CalcArea(0, bestLen[i][sig1]) / (sqrt_2_PI * bestLen[i][sig1]);
-        areaLeft = 1 - bestLen[i][S1];
-        cacheLen[i][mu2] = areaLeft / CalcArea(bestLen[i][mu2], bestLen[i][sig2]) / (sqrt_2_PI * bestLen[i][sig2]);
-//        cacheTurn[i][S2] = bestTurn[i][S2] / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
-//        double areaLeft = 1 - bestTurn[i][S1] - bestTurn[i][S2];
-//        cacheTurn[i][mu3] = areaLeft / CalcArea(bestTurn[i][mu3], bestTurn[i][sig3]) / (sqrt_2_PI * bestTurn[i][sig3]);
+        cacheLen[i][mu2] = (1 - bestLen[i][S1]) / CalcArea(bestLen[i][mu2], bestLen[i][sig2]) / (sqrt_2_PI * bestLen[i][sig2]);
     }
     clog<<"Params for predicting turning prob loaded. All estimated values below should be in range (0,1):"<<endl;
     clog<<Estimate_wrap(0,16,true)<<' '<<Estimate_wrap(200,16,true)<<' '<<Estimate_wrap(600,16,true)

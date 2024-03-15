@@ -1,7 +1,6 @@
 #include "opCSV.h"
 #include "traffic.h"
 #include "FuncEst.h"
-#include "definitions.h"
 #include <iostream>
 #include <fstream>
 #include <thread>
@@ -24,7 +23,7 @@ int distToTwo(int hour) {
 std::vector<std::vector<double>> road_vectors(PATH_NUM);
 vector<string> addHeader = {"toNode", "hourFrom2", "greenProb", "vel"};
 vector<string> header;
-TrafficHandler traffics;
+TrafficHandler traffics("../../train_traffic_data.csv");
 
 void TaskTurn(){
     ReadStat("../../train_turn_cnt.txt", true);
@@ -40,27 +39,22 @@ void TaskData(const string &mode){
     CSVFile rawTraffic("../../"+mode+"_traffic_data.csv");
     safe_clog(mode+" Read Finish");
     CSVFile dataVel(header);
-    int cnt=0;
-    //double lastVel = 0;
     for(int i=1;i<rawTraffic.size();++i){
-        cnt+=1;
         auto &line=rawTraffic[i], &last=rawTraffic[i-1];
-        if(last["traj_id"]!=line["traj_id"]){
-            //lastVel = 0;
+        if(last["traj_id"]!=line["traj_id"])
             continue;
-        }
         int roadID = last["original_path_id"], toID = last["transition_path_id"];
         long long elapsed;
         double vel, toNodeDist = last["distance"];
         if(last["original_path_id"]!=line["original_path_id"]) {
             elapsed = last["elapsed"];
-            if(elapsed==0)continue;
+            if(elapsed==0||elapsed>1024)continue;
             vel = toNodeDist/elapsed;
             toNodeDist /= 2;
         }
         else{
-            elapsed = (long long)(line["sec"]-last["sec"]+3600)%3600+(long long)(line["hour"]-last["hour"]+24)%24*3600;
-            if(elapsed==0)continue;
+            elapsed = line["sec"]-last["sec"]+(long long)(line["hour"]-last["hour"]+24)%24*3600;
+            if(elapsed==0||elapsed>1024)continue;
             vel = (toNodeDist-line["distance"])/elapsed;
             toNodeDist = (toNodeDist+line["distance"])/2;
         }
@@ -70,7 +64,6 @@ void TaskData(const string &mode){
         long long timestamp= last["hour"]*3600+last["sec"]+elapsed/2;
         dataVel.back().push_back(road_vectors[roadID], toNodeDist, distToTwo(last["hour"]),
                                  traffics.query(roadID, toID, timestamp, toNodeDist), vel<0?0:vel);
-        //lastVel = vel;
     }
     dataVel.saveTo("data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
@@ -82,7 +75,6 @@ int main(){
     for(auto &i:threads)i.join();
     return 0;
 
-    traffics.init("../../train_traffic_data.csv");
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
     header.insert(header.end(),addHeader.begin(),addHeader.end());
