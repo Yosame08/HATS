@@ -10,4 +10,5 @@ include_directories(${COMMON_DIR})
 add_executable(Make_Data main.cpp
         ${COMMON_DIR}/traffic.cpp ${COMMON_DIR}/opCSV.cpp
         ${COMMON_DIR}/traffic.cpp ${COMMON_DIR}/FuncEst.cpp
+        ${COMMON_DIR}/funcIO.cpp
 )

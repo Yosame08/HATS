@@ -1,17 +1,11 @@
 #include "opCSV.h"
 #include "traffic.h"
 #include "FuncEst.h"
+#include "funcIO.h"
 #include <iostream>
 #include <fstream>
 #include <thread>
-#include <mutex>
-
 using namespace std;
-mutex clog_mtx;
-void safe_clog(const string& message) {
-    lock_guard<mutex> lock(clog_mtx);
-    clog << message << endl;
-}
 
 int distToTwo(int hour) {
     int distance = std::abs(hour - 2);
@@ -72,8 +66,6 @@ void TaskData(const string &mode){
 int main(){
     std::vector<std::thread> threads;
     threads.emplace_back(TaskTurn);
-    for(auto &i:threads)i.join();
-    return 0;
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));

@@ -1,6 +1,7 @@
 #include "FuncEst.h"
 #include "definitions.h"
 #include "structs.h"
+#include "funcIO.h"
 #include <fstream>
 #include <string>
 #include <cmath>
@@ -8,20 +9,16 @@
 #include <sstream>
 #include <iomanip>
 #include <vector>
-#include <thread>
-#include <mutex>
-
+#include <cassert>
 using namespace std;
 
 /*
- * This module is to estimate the probability of turning sig1 specified angle
- * We use 4 normal distribution to realize this function
- * 1/(sqrt(2*pi)*sig1)*exp(-x^2/(2*sig1^2))
- * when mu4 = 0 and 90 and 180
+ * This module is to estimate the probability of turning and length
+ * We use 2 normal distribution to implement this function
  */
 
 vector<int> times;
-const int mxTurn = 5000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
+const int mxTurn = 6000 / granular_turn + 1, mxLen = 6000 / granular_len + 1;
 const int mxMissing = 30;
 vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
 enum pName{
@@ -97,11 +94,9 @@ double CalcArea(long double _mu, long double _sigma){
 }
 
 double Estimate(double x, const double param[], const double cache[]){
-    const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]),//, x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
-                 a2 = param[sig1] * param[sig1], b2 = param[sig2] * param[sig2];//, c2=param[sig3] * param[sig3];
-    return cache[S1] * exp(-x2 / (a2 * 2))
-         + cache[mu2] * exp(-x_mu_2 / (b2 * 2));
-         //+ cache[mu3] * exp(-x_mu_3 / (c2 * 2));
+    const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]);//, x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
+    return cache[S1] * exp(-x2 / cache[sig1])
+         + cache[mu2] * exp(-x_mu_2 / cache[sig2]);
 }
 
 double EstimateSP(double x, const double param[], const double cache[]){
@@ -109,35 +104,44 @@ double EstimateSP(double x, const double param[], const double cache[]){
     return cache[S1] * exp(-x2 / (a2 * 2));
 }
 
+void EstiUpdate(int id, const double param[], const double cache[], bool turn){
+    auto &lossArr = turn?lossTurn[id]:lossLen[id];
+    auto &bestArr = turn?bestTurn[id]:bestLen[id];
+    const auto &freqArr = turn?freqTurn[id]:freqLen[id];
+    double loss=0;
+    for(int i=0; i < (turn?mxTurn:mxLen); ++i){
+        double est = Estimate(i, param, cache);
+        assert(est==est); // nan inf
+        loss += abs(est - freqArr[i]);
+        //sum += est;
+    }
+    if(loss < lossArr){
+        lossArr=loss;
+        for(int i=0;i<Size;++i)bestArr[i]=param[i];
+    }
+}
+
+const int width = 8;
 void FindOneParam(pName name, double areaLeft, int id, double param[], const double step[], double origin[], bool turn){
     auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
-    auto &lossArr = turn?lossTurn:lossLen;
-    auto &bestArr = turn?bestTurn:bestLen;
-    const auto &freqArr = turn?freqTurn:freqLen;
-
-    double from = origin[name] - step[name] * 12, to = origin[name] + step[name] * 12;
+    double from = origin[name] - step[name] * width, to = origin[name] + step[name] * width;
     int cnt = 1;
     for(param[name]=from; param[name] <= to; param[name]+=step[name], ++cnt){
         if(param[name] <= EPS)continue;
-        double use = 0, loss, sum=0;
+        double use = 0;
         switch (name) {
             case mu2:
                 cacheArr[mu2] = areaLeft / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-                loss = 0;
-                for(int i=0; i < (turn?mxTurn:mxLen); ++i){
-                    double est = Estimate(i, param, cacheArr);
-                    loss += abs(est - freqArr[id][i]);
-                    sum += est;
-                }
-                if(loss < lossArr[id]){
-                    lossArr[id]=loss;
-                    for(int i=0;i<Size;++i)bestArr[id][i]=param[i];
-                }
+                EstiUpdate(id, param, cacheArr, turn);
                 continue;
             case S1:
                 use = param[S1];
                 cacheArr[S1] = use / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
                 if(use>=areaLeft)return;
+                break;
+            case sig1:
+            case sig2:
+                cacheArr[name] = param[name] * param[name] * 2;
             default:
                 break;
         }
@@ -145,48 +149,65 @@ void FindOneParam(pName name, double areaLeft, int id, double param[], const dou
     }
 }
 
-mutex coutMutex;
-
-void FindParam(int id, bool turn){
-    auto &bestArr = turn?bestTurn:bestLen;
-    double origin_param[Size], step[Size], param[Size];
-    static const double begin_param[] = {100,0.5, 100,100};//,0.6, 20, 3};
-    static const double begin_step[]  = {10, 0.04,10, 10};//,0.08,2.5,0.5};
-    for(int i=0;i<Size;++i){
-        origin_param[i]=begin_param[i];
-        step[i]=begin_step[i];
-        param[i]=origin_param[i];
-    }
-    for(int i=1;i<=30;++i){
-        if(turn)lossTurn[id] = 1e300;
-        else lossLen[id] = 1e300;
-        FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
-        for(int j=0;j<Size;++j){
-            origin_param[j]=bestArr[id][j];
-            param[j]=origin_param[j];
-            step[j]/=2;
+void FindRoughParam(int id, double param[], bool turn){
+    auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
+    for(double v1=10;v1<=500;v1+=10) {
+        param[sig1] = v1;
+        cacheArr[sig1] = param[sig1] * param[sig1] * 2;
+        for (double v2 = 0.1; v2 < 1; v2 += 0.1) {
+            param[S1] = v2;
+            cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
+            for (double v3 = 10; v3 <= 500; v3 += 10) {
+                param[sig2] = v3;
+                cacheArr[sig2] = param[sig2] * param[sig2] * 2;
+                for (double v4 = 10; v4 <= 500; v4 += 10) {
+                    param[mu2] = v4;
+                    cacheArr[mu2] = (1 - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
+                    EstiUpdate(id, param, cacheArr, turn);
+                }
+            }
         }
     }
-    lock_guard<mutex> lock(coutMutex);
-    cout << id << ": Min loss = " << (turn?lossTurn[id]:lossLen[id]) << '\n';
+}
+
+void FindParam(int id, bool turn){
+    auto &bestArr = turn?bestTurn[id]:bestLen[id];
+    auto &lostVal = turn?lossTurn[id]:lossLen[id];
+    double origin_param[Size], param[Size];
+    auto updateParam = [&](){
+        for(int i=0;i<Size;++i)param[i] = origin_param[i] = bestArr[i];
+    };
+    updateParam();
+    safe_cout(to_string(id)+" Finding rough parameters...");
+    lostVal = 1e300;
+    FindRoughParam(id,param,turn);
+    updateParam();
+    double step[] = {3, 0.03,3, 3};
+    safe_cout(to_string(id)+" Finding precise parameters...");
+    for(int i=1;i<=20;++i){
+        lostVal = 1e300;
+        FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
+        updateParam();
+        for(int j=0;j<Size;++j){
+            if(param[j] == origin_param[j] - step[j] * width || param[j] == origin_param[j] + step[j] * width)continue;
+            step[j] /= 2;
+        }
+    }
+    stringstream str;
+    str << id << ": Min loss = " << (turn?lossTurn[id]:lossLen[id]);
+    safe_cout(str.str());
 }
 
 void FitParam(bool turn){
-    ThreadPool pool(std::thread::hardware_concurrency()); // 创建线程池，线程数等于CPU线程数
+    ThreadPool pool(15);
     for(int i=0;i<times.size();++i){
         pool.enqueue([i, turn](){ FindParam(i, turn); }); // 将任务添加到线程池
     }
-//    std::vector<std::thread> threads;
-//    threads.reserve(times.size());
-//    for(int i=0;i<times.size();++i){
-//        threads.emplace_back(FindParam, i, turn);
-//    }
-//    for(auto &i:threads)i.join();
 }
 
 void Output(const string &outFN, bool turn){
     ofstream out(outFN);
-    out<<fixed<<setprecision(8);
+    out<<fixed<<setprecision(10);
     for(int i=0;i<times.size();++i){
         out<<times[i]<<" Secs:\n";
         for(auto j:(turn?bestTurn[i]:bestLen[i]))out << j << ' ';
@@ -226,12 +247,17 @@ vector<int> LoadParam(const string& turnFN, const string& lenFN){
     for(int i=0;i<times.size();++i){
         cacheTurn[i][S1] = bestTurn[i][S1] / CalcArea(0, bestTurn[i][sig1]) / (sqrt_2_PI * bestTurn[i][sig1]);
         cacheTurn[i][mu2] = (1 - bestTurn[i][S1]) / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
+        cacheTurn[i][sig1] = bestTurn[i][sig1] * bestTurn[i][sig1] * 2;
+        cacheTurn[i][sig2] = bestTurn[i][sig2] * bestTurn[i][sig2] * 2;
         cacheLen[i][S1] = bestLen[i][S1] / CalcArea(0, bestLen[i][sig1]) / (sqrt_2_PI * bestLen[i][sig1]);
         cacheLen[i][mu2] = (1 - bestLen[i][S1]) / CalcArea(bestLen[i][mu2], bestLen[i][sig2]) / (sqrt_2_PI * bestLen[i][sig2]);
+        cacheLen[i][sig1] = bestLen[i][sig1] * bestLen[i][sig1] * 2;
+        cacheLen[i][sig2] = bestLen[i][sig2] * bestLen[i][sig2] * 2;
     }
     clog<<"Params for predicting turning prob loaded. All estimated values below should be in range (0,1):"<<endl;
     clog<<Estimate_wrap(0,16,true)<<' '<<Estimate_wrap(200,16,true)<<' '<<Estimate_wrap(600,16,true)
-        <<' '<<Estimate_wrap(0,16,false)<<' '<<Estimate_wrap(200,16,false)<<' '<<Estimate_wrap(600,16,false)<<endl;
+        <<' '<<Estimate_wrap(0,16,false)<<' '<<Estimate_wrap(200,16,false)<<' '<<Estimate_wrap(600,16,false)
+        <<' '<<Estimate_wrap(-10,8,false)<<endl;
     return times;
     //exit(0);
 }
@@ -239,5 +265,5 @@ vector<int> LoadParam(const string& turnFN, const string& lenFN){
 double Estimate_wrap(double val, int id, bool turn){
     if(turn) return Estimate(val / granular_turn, bestTurn[id], cacheTurn[id]);
     else if(val>=0)return Estimate(val / granular_len, bestLen[id], cacheLen[id]);
-    else return EstimateSP(val / granular_len, bestLen[id], cacheLen[id]);
+    else return EstimateSP(val * 2 / granular_len, bestLen[id], cacheLen[id]);
 }

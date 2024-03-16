@@ -2,28 +2,12 @@
 #include "structs.h"
 #include "maths.h"
 #include <cmath>
-#include <mutex>
-#include <cassert>
 #include <iostream>
 #include <queue>
 using namespace std;
 
 extern Road roads[];
 extern GridType inGrid;
-
-mutex clog_mtx, cout_mtx, cerr_mtx;
-void safe_clog(const string& message){
-    lock_guard<mutex> lock(clog_mtx);
-    clog << '\r' << message << endl;
-}
-void safe_cout(const string& message){
-    lock_guard<mutex> lock(cout_mtx);
-    cout << message << endl;
-}
-void safe_cerr(const string& message){
-    lock_guard<mutex> lock(cerr_mtx);
-    cerr << message << endl;
-}
 
 double PtMatchProb(double dist){
     static const double coefficient = 1 / (SIGZ * sqrt(M_2_PI));

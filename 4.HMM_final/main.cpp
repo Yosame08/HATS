@@ -4,6 +4,7 @@
 #include "maths.h"
 #include "predict.h"
 #include "FuncEst.h"
+#include "funcIO.h"
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -71,6 +72,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     // Initialize some const Value to prune search tree
     const float greatCircle = lastTr.p.dist(nowTr.p);
     const int span = int(nowTr.timestamp - lastTr.timestamp);
+    int seqSize = 1;
     // Set starting state
     seqPath.push_back({PathNode{fromRoad, lastTr.timestamp, toNodeDistA}, -1, 0,
                        toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
@@ -81,27 +83,18 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         int lastNode = q.top().node;
         q.pop();
         const auto &lastInfo = seqPath[lastNode];
-        int atRoad = lastInfo.pNode.roadID;
+        const int &atRoad = lastInfo.pNode.roadID;
         if(vis.chk(atRoad))continue;
         vis.set(atRoad);
         int node = roads[atRoad].to;
         for(auto to:g.node[node]){
-            if(to!=toRoad && vis.chk(to))continue;
+            if(to != toRoad && vis.chk(to))continue;
             float angle = lastInfo.angle;
-            // A road of very short length may be a flaw in the map and should be considered part of a normal crossing. Here we ignore roads with length of no more than 5m
-            if(RoadLen(to)>5){
-                for(int nodeID=lastNode; nodeID != -1; nodeID=seqPath[nodeID].prev){
-                    const int roadID = seqPath[nodeID].pNode.roadID;
-                    if(RoadLen(roadID)>5){
-                        angle += GetTurnAngle(roadID, to);
-                        break;
-                    }
-                }
-            }
+            angle += GetTurnAngle(atRoad, to);
             // Found the destination
             if(to==toRoad){
                 float allLen = lastInfo.len + fromNodeDistB;
-                if(allLen >= float(span) * 45)continue;
+                if(allLen >= float(span) * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
                 double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span);
                 if(outProb > result.prob){
@@ -116,14 +109,14 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             // 检查应该入队还是被剪枝
             // 各种剪枝：最多执行span/3步，也就是最快允许平均每3秒换一条路段
             if(lastInfo.level > span/3)continue;
-            // span/5步后，比起点前更靠近目的地（直线）
-            if(lastInfo.level > span/5 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
+            // span/6步后，比起点前更靠近目的地（直线）
+            if(lastInfo.level > span/6 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
-            if(totLen >= float(span) * 45)continue;
+            if(totLen >= float(span) * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode, lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), (int)seqPath.size()-1});
+            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), seqSize++});
         }
     }
     // 搜索结束
@@ -141,6 +134,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id, ostringstream &recovery){
+    //if(id<17)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovery<<"Failed\n"<<-id-1<<'\n';
@@ -179,6 +173,7 @@ void solve(int id, ostringstream &recovery){
                 double traceProb;
                 if(old.roadID == now.roadID){
                     path = new Path();
+                    path->push_back({old.roadID,traceNow[i-1].timestamp,old.toNodeDist});
                     path->push_back({now.roadID,traceNow[i].timestamp,now.toNodeDist});
                     double ground = old.toNodeDist - now.toNodeDist;
                     float angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
@@ -228,13 +223,13 @@ void solve(int id, ostringstream &recovery){
     //stack<int>fullID;
     while(search[outID].prev!=-1){
         auto &node=search[outID];
-//        for(auto x=node.path->rbegin();x!=node.path->rend();++x){
-//            if((!fullID.empty())&&x->roadID!=fullID.top())
-//                fullID.push(x->roadID);
-//        }
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
+        if(node.path->size()==1){
+            outID=node.prev;
+            continue;
+        }
         vector<float> *maxPredVel=nullptr;
         long long minDif = 0;
         long long tm = traceNow[last.pointID].timestamp;
@@ -246,11 +241,14 @@ void solve(int id, ostringstream &recovery){
                 vel = VelPrediction(roadID, toID, toNodeDist, tm, red);
                 ++tm, toNodeDist -= vel, predVel->push_back(vel);
             }
-            while (toNodeDist <= 0 && index < node.path->size() - 1){
-                roadID = toID;
-                toNodeDist += RoadLen(toID);
-                toID = (*node.path)[++index].roadID;
-            }
+            roadID = toID;
+            toNodeDist = RoadLen(toID);
+            if(index < node.path->size() - 1)toID = (*node.path)[++index].roadID;
+//            while (toNodeDist <= 0 && index < node.path->size() - 1){
+//                roadID = toID;
+//                toNodeDist += RoadLen(toID);
+//                toID = (*node.path)[++index].roadID;
+//            }
         }while(index < node.path->size() - 1);
         float needPass = toNodeDist - node.toNodeDist;
         while (needPass > 0) {
@@ -354,7 +352,6 @@ int main() {
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
-    //m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
@@ -374,10 +371,6 @@ int main() {
     recovery<<fixed<<setprecision(10);
     for(int i=0;i<m;++i)recovery<<recovStream[i].str();
     recovery.close();
-//    ofstream match("Full_Matched_Final.txt");
-//    match<<m<<'\n';
-//    for(int i=0;i<m;++i)match<<matchStream[i].str();
-//    match.close();
     return 0;
 }
 

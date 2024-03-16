@@ -79,7 +79,7 @@ with open("../ParamLen.txt", "r") as f:
 
 # plt.plot(x, fit_fixed, marker='+', color='b', linewidth=1, markersize=2)
 plt.title('p')
-plt.xlabel('Degree')
+plt.xlabel('Length')
 plt.ylabel('Sum')
 plt.xlim([0, 1000])
 plt.ylim([0, 0.05])

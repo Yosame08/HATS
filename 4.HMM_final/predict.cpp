@@ -23,10 +23,11 @@ float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp,
     torch::Tensor input = torch::from_blob(inputs.data(), {1, static_cast<int64_t>(inputs.size())}, torch::kFloat);
     torch::Tensor output = moduleVel.forward({input}).toTensor();
     auto out = output.item<float>();
-    if(out<1){
-        ++red;
-        if(out<0.01)out=0.01;
-    }
-    else red = 0;
+    if(out<0.01)out=0.01;
+//    if(out<1){
+//        ++red;
+//        if(out<0.01)out=0.01;
+//    }
+//    else red = 0;
     return out;
 }

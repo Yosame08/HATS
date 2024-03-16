@@ -3,8 +3,8 @@ import numpy as np
 from math import exp, sqrt
 
 granularity = 1
-statBegin = -100
-statEnd = 5000
+statBegin = -200
+statEnd = 6000
 
 def phi(x):
     # constants
@@ -59,7 +59,7 @@ y3 = 0.95/CalcArea(250,400)/sqrt(2*3.1415926)/400 * np.exp(-(x-250)**2/(2*400*40
 # 创建一个新的figure
 plt.figure()
 for key in data:
-    val = key/300
+    val = key/360
     plt.plot(x, data[key], marker='x', color=(val, 0, val), linewidth=1, markersize=3)
 plt.plot(x, y3, marker='+', color=(0, 1, 0), linewidth=1, markersize=0)
 plt.plot(x, y2, marker='+', color=(0, 0, 1), linewidth=1, markersize=0)
