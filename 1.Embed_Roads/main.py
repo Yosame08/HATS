@@ -60,9 +60,9 @@ occur = [0 for i in range(lim+1)]
 in_deg = [0 for i in range(lim+1)]
 out_deg = [0 for i in range(lim+1)]
 to_road = [0 for i in range(lim+1)]
-file_edge = '../edgeOSM_Porto.txt'
+file_edge = '../Map/edgeOSM.txt'
 road_lengths = read_map_data(file_edge)
-file_level = '../wayTypeOSM_Porto.txt'
+file_level = '../Map/wayTypeOSM.txt'
 road_level = read_road_level(file_level)
 # print(road_lengths)
 
@@ -80,7 +80,7 @@ for seq in sequences:
     for x in seq:
         occur[int(x)] += 1
 
-vec_size = 8
+vec_size = 9
 # 使用Word2Vec训练
 model = Word2Vec(sequences, vector_size=vec_size, window=3, min_count=1, workers=8, sg=0)
 
@@ -88,7 +88,7 @@ model = Word2Vec(sequences, vector_size=vec_size, window=3, min_count=1, workers
 model.save("road_embedding.model")
 
 # 将每条道路的向量保存到文件中
-with open('../road_vectors.txt', 'w') as f:
+with open('../Intermediate/road_vectors.txt', 'w') as f:
     f.write(f'{lim}\n')
     for road_id in range(lim + 1):
         if str(road_id) in model.wv:
@@ -97,4 +97,4 @@ with open('../road_vectors.txt', 'w') as f:
         else:
             out_str = f'{road_id} {" ".join(map(str, [0 for _ in range(vec_size)]))} '
         f.write(out_str+f'{occur[road_id]/len(sequences)*1000} {road_level[road_id]} '
-                        f'{(in_deg[to_road[road_id]]+out_deg[to_road[road_id]])} {road_lengths[road_id]*1000}\n')
+                        f'{road_lengths[road_id]*1000}\n') #{(in_deg[to_road[road_id]]+out_deg[to_road[road_id]])}

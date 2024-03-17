@@ -2,7 +2,7 @@
 #undef TRACEFILE
 
 #include <string>
-const std::string mode = "valid";
+const std::string mode = "train";
 #define TRACEFILE ("../../"+mode+"_input.txt")
 
 #include "structs.h"
@@ -105,7 +105,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<int> unmatched(0);
 void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
-    //if(id<70)return;
     auto myAssert = [id, &fullMatch](bool condition, const string& cause){
         if(condition)return true;
         string msg = string("Can't Match point to road at road id ")+ to_string(id)+string(" due to ")+cause;
@@ -194,21 +193,17 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         // 1. Stat: distance difference and angle turned
         if(node.prev!=-1){
             float totLen=0, totAngle=0;
-            //const auto &prev=search[node.prev];
             // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
-            //if(node.toNodeDist>300&&prev.toNodeDist-node.toNodeDist<traceNow[node.pointID].timestamp-traceNow[prev.pointID].timestamp)recent24[0]=0;
-            //else{
-                recent24[0]=outID;
-                for(int i=1;i<=24;++i){
-                    if(!recent24[i])break;
-                    int &old=recent24[i];
-                    totLen += length[old];
-                    float dif = totLen - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
-                    totAngle += angles[old];
-                    difSingle[i].push_back(dif);
-                    turnStash[i].push_back(totAngle);
-                }
-            //}
+            recent24[0]=outID;
+            for(int i=1;i<=24;++i){
+                if(!recent24[i])break;
+                int &old=recent24[i];
+                totLen += length[old];
+                float dif = totLen - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
+                totAngle += angles[old];
+                difSingle[i].push_back(dif);
+                turnStash[i].push_back(totAngle);
+            }
             for(int i=24;i>=1;--i)recent24[i]=recent24[i-1];
         }
 
@@ -221,7 +216,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         outID=node.prev;
     }
     int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear;
-    bool ignoreInfo = false;
+    // bool ignoreInfo = false;
     cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
         auto &now=fullPath[p];
@@ -244,7 +239,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         }
         if(p&&fullPath[p-1].timestamp==now.timestamp)continue; // if multiple points have the same timestamp, using the farthest
         if(nextOut!=-1 && now.timestamp>0){
-            if(ignoreInfo)continue;
+            //if(ignoreInfo)continue;
             long long hour=(now.timestamp%86400/3600+TIMEZONE)%24,sec=now.timestamp%3600;
             cross << id << ',' << now.roadID << ',' << fullPath[nextOut].roadID << ',' << hour << ',' << sec << ','
                   << now.toNodeDist << ',' << fullPath[nextOut].timestamp - now.timestamp << '\n';
@@ -264,12 +259,16 @@ void print_progress(int lim) {
     while (true) {
         int current_progress = progress.load();
         int per = (100 * current_progress) / lim;
+        bool out = false;
         std::cout << "\r[";
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 101; i+=2) {
             int interval = per<10?1:(per<100?2:3);
             if(i < per)std::cout << "■";
-            else if(i == per)std::cout << per << '%';
-            else if(i >= per + interval+1)std::cout << ' ';
+            else if(i == per || !out){
+                std::cout << per << '%';
+                out = true;
+            }
+            else if(i > per + interval)std::cout << ' ';
         }
         std::cout << "] (" << current_progress << "/" << lim << ") [" << unmatched << " not matched]";
         std::cout << std::flush;

@@ -100,7 +100,7 @@ double Normal(double x){
 double TrafficHandler::query(int roadID, int toID, long long timestamp, float toNodeDist) const{
     timestamp -= toNodeDist/5;
     revise(timestamp);
-    if(toID==-1)return 1;//no considering lights
+    if(toID==roadID)return 0.5;//no considering lights
     if(!lights[roadID].count(toID))return 1/(1+exp(-1));
     double accu=0;
     const auto &scoreArr = lights[roadID].at(toID)->score;

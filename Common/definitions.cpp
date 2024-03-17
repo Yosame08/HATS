@@ -19,7 +19,7 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
     unordered_map<int,priority_queue<pair<double,float>>> tmp;
     int gridX= int(p.lat / GRIDSIZE), gridY= int(p.lon / GRIDSIZE);
     bool ok = false;
-    for(int lim = dFrom; lim <= dTo && !ok; lim+=20){
+    for(int lim = dFrom; lim <= dTo && !ok; lim += dFrom){
         for(int lat = gridX - 20; lat <= gridX + 20; ++lat)for(int lon = gridY - 25; lon <= gridY + 25; ++lon){
             if((!inGrid.count(lat)) || (!inGrid.at(lat).count(lon)))continue;
             for(auto &i:inGrid.at(lat).at(lon)){

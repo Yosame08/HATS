@@ -70,7 +70,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     BitInt vis;
     priority_queue<QueueInfo>q;
     // Initialize some const Value to prune search tree
-    const float greatCircle = lastTr.p.dist(nowTr.p);
+    const auto greatCircle = (float)lastTr.p.dist(nowTr.p);
     const int span = int(nowTr.timestamp - lastTr.timestamp);
     int seqSize = 1;
     // Set starting state
@@ -90,7 +90,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         for(auto to:g.node[node]){
             if(to != toRoad && vis.chk(to))continue;
             float angle = lastInfo.angle;
-            angle += GetTurnAngle(atRoad, to);
+            angle += (float)GetTurnAngle(atRoad, to);
             // Found the destination
             if(to==toRoad){
                 float allLen = lastInfo.len + fromNodeDistB;
@@ -133,11 +133,11 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 }
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
-void solve(int id, ostringstream &recovery){
+void solve(int id){
     //if(id<17)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
-        recovery<<"Failed\n"<<-id-1<<'\n';
+        recovStream[id]<<"Failed\n"<<-id-1<<'\n';
         safe_clog(string("Can't Match point to road at road id ")+ to_string(id) +string(" due to ")+cause);
         return false;
     };
@@ -146,7 +146,7 @@ void solve(int id, ostringstream &recovery){
 
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
-    FindRoad(80, 400, traceNow[0].p, found);
+    FindRoad(60, 300, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
 
     vector<SearchNode>search;
@@ -159,7 +159,7 @@ void solve(int id, ostringstream &recovery){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(80, 400, traceNow[i].p, found);
+        FindRoad(60, 300, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
@@ -220,46 +220,39 @@ void solve(int id, ostringstream &recovery){
     PointLL lastPoint = FindLatLon(search[outID].roadID, search[outID].toNodeDist);
     int lastID = search[outID].roadID;
     vector<Path>result;
-    //stack<int>fullID;
     while(search[outID].prev!=-1){
         auto &node=search[outID];
-        if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
+        if(!myAssert(node.path->size()>=2,"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
-        if(node.path->size()==1){
-            outID=node.prev;
-            continue;
-        }
         vector<float> *maxPredVel=nullptr;
         long long minDif = 0;
         long long tm = traceNow[last.pointID].timestamp;
         float toNodeDist = last.toNodeDist, vel;// = beginVel;
-        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1, red = 0;
+        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1;
         auto *predVel = new vector<float>{};
-        do{
+        while(index < node.path->size() - 1){
             while (toNodeDist > 0) {
-                vel = VelPrediction(roadID, toID, toNodeDist, tm, red);
+                vel = VelPrediction(roadID, toID, toNodeDist, tm);
                 ++tm, toNodeDist -= vel, predVel->push_back(vel);
             }
-            roadID = toID;
-            toNodeDist = RoadLen(toID);
-            if(index < node.path->size() - 1)toID = (*node.path)[++index].roadID;
-//            while (toNodeDist <= 0 && index < node.path->size() - 1){
-//                roadID = toID;
-//                toNodeDist += RoadLen(toID);
-//                toID = (*node.path)[++index].roadID;
-//            }
-        }while(index < node.path->size() - 1);
+            while (toNodeDist <= 0 && index < node.path->size() - 1){
+                roadID = toID;
+                toNodeDist += RoadLen(toID);
+                toID = (*node.path)[++index].roadID;
+            }
+        }
         float needPass = toNodeDist - node.toNodeDist;
         while (needPass > 0) {
-            vel = VelPrediction(roadID, -1, toNodeDist, tm, red);
+            vel = VelPrediction(roadID, roadID, toNodeDist, tm);
             ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel);
         }
         if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
             minDif = tm;
             delete maxPredVel;
             maxPredVel = predVel;
-        } else delete predVel;
+        }
+        else delete predVel;
 
         if(minDif == traceNow[last.pointID].timestamp){
             for(auto t = traceNow[last.pointID].timestamp+RECOVER_INTERVAL;t<traceNow[node.pointID].timestamp;t+=RECOVER_INTERVAL)
@@ -269,7 +262,7 @@ void solve(int id, ostringstream &recovery){
             double scale=double(traceNow[node.pointID].timestamp-traceNow[last.pointID].timestamp)/double(minDif-traceNow[last.pointID].timestamp), accu=0;
             toNodeDist = last.toNodeDist, roadID = last.roadID, index=1;
             auto update = [&](double dist){
-                toNodeDist -= dist;
+                toNodeDist -= (float)dist;
                 while(toNodeDist <= 0 && index < node.path->size() - 1){
                     toNodeDist += RoadLen((*node.path)[index].roadID);
                     roadID = (*node.path)[index++].roadID;
@@ -294,23 +287,18 @@ void solve(int id, ostringstream &recovery){
         outID=node.prev;
     }
     long long printStamp = 0;
-    recovery<<fixed<<setprecision(8);
+    recovStream[id]<<fixed<<setprecision(8);
     for(auto tr=result.rbegin();tr!=result.rend();++tr){
         for(auto &x:*tr){
             if(x.timestamp==printStamp)continue;
             else printStamp=x.timestamp;
             PointLL recov=FindLatLon(x.roadID,x.toNodeDist);
-            recovery<<x.timestamp<<' '<<recov.lat<<' '<<recov.lon<<' '<<x.roadID<<'\n';
+            recovStream[id]<<x.timestamp<<' '<<recov.lat<<' '<<recov.lon<<' '<<x.roadID<<'\n';
         }
     }
     if(traceNow.back().timestamp!=printStamp)
-        recovery<<traceNow.back().timestamp<<' '<<lastPoint.lat<<' '<<lastPoint.lon<<' '<<lastID<<'\n';
-    recovery<<-id-1<<'\n';
-//    while(!fullID.empty()){
-//        match<<fullID.top()<<' ';
-//        fullID.pop();
-//    }
-//    match<<'\n';
+        recovStream[id]<<traceNow.back().timestamp<<' '<<lastPoint.lat<<' '<<lastPoint.lon<<' '<<lastID<<'\n';
+    recovStream[id]<<-id-1<<'\n';
     auto IPH = clock()-beginTM;
     sPhaseTM += SPH, iPhaseTM += IPH;
     for(auto &x:search)delete x.path;
@@ -330,7 +318,7 @@ void print_progress(int lim, int thread) {
         }
         std::cout << "] (" << current << "/" << lim << ") ";
         if(!current)current=1;
-        std::cout << "[Search " << sPhaseTM/(double)CLOCKS_PER_SEC/current/thread << "s, Interpolation " << iPhaseTM/(double)CLOCKS_PER_SEC/current/thread << "s]";
+        std::cout << "[Search " << (double)sPhaseTM/CLOCKS_PER_SEC/current/thread << "s, Interpolation " << (double)iPhaseTM/CLOCKS_PER_SEC/current/thread << "s]";
         std::cout << std::flush;
         if (current >= lim) break;
         this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -340,7 +328,7 @@ void print_progress(int lim, int thread) {
 
 void process(int start, int end){
     for(int j=start;j<end;++j){
-        solve(j, recovStream[j]);
+        solve(j);
         ++progress;
     }
 }
@@ -352,6 +340,7 @@ int main() {
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
+    //m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
@@ -376,13 +365,13 @@ int main() {
 
 void ReadVectors(){
     clog<<"Reading Embedded Road Vectors..."<<endl;
-    ifstream file("../../road_vectors.txt");
+    ifstream file(ROADVECTOR);
     int num_roads;
     file >> num_roads;
     for (int i = 0; i <= min(num_roads,PATH_NUM-1); ++i) {
         int road_id;
         file >> road_id;
-        std::vector<float> vector(vec_len+3);
+        std::vector<float> vector(vec_len);
         for (int j = 0; j < vec_len; ++j) file >> vector[j];
         road_vectors[road_id]=vector;
     }

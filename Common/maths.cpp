@@ -85,6 +85,12 @@ int distToTwo(int hour) {
     return distance;
 }
 
+float CycleTime(long long stamp) {
+    if(stamp <= 7200) return (7200 - stamp) / 3600.0;
+    if(stamp < 14*3600) return (stamp - 7200) / 3600.0;
+    return (86400 + 7200 - stamp) / 3600.0;
+}
+
 double GetTurnAngle(int fromID, int toID){
     const PointLL &cross = roads[toID].seg.front().line.startLL;
     Vector vFrom = latLonToXY(roads[fromID].seg.back().line.startLL,cross)-Point{0,0};
