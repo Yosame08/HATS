@@ -233,8 +233,7 @@ void solve(int id){
         auto *predVel = new vector<float>{};
         while(index < node.path->size() - 1){
             while (toNodeDist > 0) {
-                //int skip = toNodeDist>40?(rand()%5+1):1;
-                vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey, red);
+                vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey);
                 tm+=1, toNodeDist -= vel, predVel->push_back(vel);
             }
             while (toNodeDist <= 0 && index < node.path->size() - 1){
@@ -253,7 +252,7 @@ void solve(int id){
             }
         }
         while (needPass > 0) {
-            vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey, red);
+            vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey);
             ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel);
         }
         if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
@@ -355,7 +354,7 @@ int main() {
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
-    m=5000;
+    //m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);

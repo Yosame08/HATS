@@ -29,7 +29,7 @@ print("Preparing dataset...")
 # 创建数据加载器
 batch_size = 8192  # 你可以根据需要调整这个值
 train_data = TensorDataset(X_train, y_train)
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=8)
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=16)
 
 input_size = X_train.shape[1]
 output_size = 1
@@ -37,23 +37,23 @@ output_size = 1
 # 定义模型
 model = nn.Sequential(
     nn.Linear(input_size, 256), nn.ELU(),
-    nn.Linear(256, 256), nn.ELU(),
-    nn.Linear(256, 64), nn.ELU(),
-    nn.Linear(64, 64), nn.ELU(),
-    nn.Linear(64, 16), nn.ELU(),
-    nn.Linear(16, 16), nn.ELU(),
-    nn.Linear(16, output_size),
+    nn.Linear(256, 128), nn.ELU(),
+    nn.Linear(128, 64), nn.ELU(),
+    nn.Linear(64, 32), nn.ELU(),
+    nn.Linear(32, 16), nn.ELU(),
+    nn.Linear(16, 8), nn.ELU(),
+    nn.Linear(8, output_size),
 ).to(device)
 
 print("Start training...")
 valid_losses = []
 # 训练模型
-for times in range(3):
+for times in range(4):
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=5e-3, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.8)
-    for epoch in range(300):  # 请根据你的需求调整迭代次数
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+    for epoch in range(100):  # 请根据你的需求调整迭代次数
         startTM = time.time()
         model.train()
         train_loss = 0
@@ -79,25 +79,25 @@ for times in range(3):
         with torch.no_grad():
             output_sample = model(X_sample.unsqueeze(0).to(device))
         pred, act = output_sample.item(), y_sample.item()
-        print(f'Random Sample: predict {pred:.2f}m/s, actual {act:.2f}m/s, delta = {pred-act:.2f}m/s')
+        print(f'Random Sample: predict {pred:.2f}m/s, actual {act:.2f}m/s ({pred-act:.2f}m/s)')
         print(
-            f'Epoch {epoch + 1}, Train Loss: {train_loss:.4f}, Valid Loss: {loss_valid.item():.4f}, Epoch Time: {time.time() - startTM:.2f}s')
+            f'Epoch {epoch + 1} ({time.time() - startTM:.2f}s), Train Loss: {train_loss:.4f}, Valid Loss: {loss_valid.item():.4f}')
         valid_losses.append(loss_valid.item())
         # 检查最近5个epoch的最低验证损失和最近6到10个epoch的最低验证损失
-        if epoch >= 10:
-            last_3_min_loss = min(valid_losses[-3:])
-            last_3_to_6_min_loss = min(valid_losses[-6:-3])
-            if last_3_min_loss >= 0.99 * last_3_to_6_min_loss:
+        if epoch >= 6:
+            last_5_min_loss = min(valid_losses[-3:])
+            last_6_to_10_min_loss = min(valid_losses[-6:-3])
+            if last_5_min_loss >= 0.99 * last_6_to_10_min_loss:
                 print(f"Early stop {times}")
                 break
 
 model = model.to(torch.device("cpu"))  # 保存为CPU上的模型，HMM中使用CPU跑小数据
 # 保存模型
-torch.save(model.state_dict(), '../Intermediate/model_vel.pth')
+torch.save(model.state_dict(), 'model_vel.pth')
 
 # 保存模型
 example_input = torch.rand(1, X_train.shape[1])  # 这是一个输入示例
 traced_script_module = torch.jit.trace(model, example_input)
 
 # 保存TorchScript模型
-traced_script_module.save("../Intermediate/model_vel.pt")
+traced_script_module.save("model_vel.pt")

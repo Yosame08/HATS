@@ -113,6 +113,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
         if(l!=r)accu += scoreArr[r] * factor;
     }
     double result = 1/(1+exp(-accu));
+    //return result;
     double certainty = abs(result-0.5), overall = lights[roadID].at(toID)->percent;
     return certainty > abs(overall-0.5) ? result : overall;
 }

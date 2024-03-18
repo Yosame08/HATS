@@ -15,7 +15,7 @@ float CycleTime(long long stamp) {
 }
 
 std::vector<std::vector<double>> road_vectors(PATH_NUM);
-vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journey", "wait", "vel"};
+vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journey", "vel"};
 vector<string> header;
 
 void TaskTurn(){
@@ -69,7 +69,6 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
     safe_clog(mode+" preprocess finish");
     vector<double>newLine;
     newLine.reserve(vec_len+addHeader.size());
-    float wait;
     for(int i=0;i<info.size();++i){
         if(i&&info[i].trajID==info[i-1].trajID){
             dataVel.append(newLine);
@@ -77,19 +76,13 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
             long long timestamp = line["hour"]*3600+line["sec"];
             double toNodeDist = line["distance"];
             double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
-            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist), CycleTime(timestamp),
-                                     info[i].begin/(double)lasting[info[i].trajID], wait, vel);
-            if(vel<1)wait += info[i-1].elapsed/2.0;
-            else wait = 0;
+            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist/1000, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist), CycleTime(timestamp),
+                                     info[i].begin/(double)lasting[info[i].trajID], vel);
         }
-        else wait=0;
         dataVel.append(newLine);
         double vel = info[i].vel;
-        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode), CycleTime(info[i].timestamp),
-                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID], wait, vel);
-        if(vel<1)wait += info[i].elapsed/2.0;
-        else wait = 0;
-        //first record, then modify "wait" -> "vel = ... after wait x seconds"
+        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode), CycleTime(info[i].timestamp),
+                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID], vel);
     }
     dataVel.saveTo("../../Intermediate/data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");

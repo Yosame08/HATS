@@ -80,7 +80,7 @@ for seq in sequences:
     for x in seq:
         occur[int(x)] += 1
 
-vec_size = 13
+vec_size = 9
 # 使用Word2Vec训练
 model = Word2Vec(sequences, vector_size=vec_size, window=2, min_count=1, workers=8, sg=0)
 
@@ -96,5 +96,5 @@ with open('../Intermediate/road_vectors.txt', 'w') as f:
             out_str = f'{road_id} {" ".join(map(str, vector))} '
         else:
             out_str = f'{road_id} {" ".join(map(str, [0 for _ in range(vec_size)]))} '
-        f.write(out_str+f'{occur[road_id]/len(sequences)*1000} {road_level[road_id]} '
-                        f'{road_lengths[road_id]*1000}\n') # {(in_deg[to_road[road_id]]+out_deg[to_road[road_id]])}
+        f.write(out_str+f'{occur[road_id]/len(sequences)*100} {road_level[road_id]} '
+                        f'{road_lengths[road_id]}\n')  # {(in_deg[to_road[road_id]]+out_deg[to_road[road_id]])}
