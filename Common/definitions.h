@@ -4,8 +4,8 @@
 #define EDGEFILE "../../Map/edgeOSM.txt"
 #define TYPEFILE "../../Map/wayTypeOSM.txt"
 #define TRACEFILE "../../test_sampled.txt"
-#define PARAMTURN "../../ParamTurn.txt"
-#define PARAMLEN "../../ParamLen.txt"
+#define PARAMTURN "../../Intermediate/ParamTurn.txt"
+#define PARAMLEN "../../Intermediate/ParamLen.txt"
 #define ROADVECTOR "../../Intermediate/road_vectors.txt"
 #define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
 #define PATH_NUM 65536
@@ -14,7 +14,7 @@
 #define BETA 2 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
-#define vec_len 12
+#define vec_len 10
 #define granular_turn 2 // for calculating the probability of turning
 #define granular_len 2 // for calculating the probability of turning
 #include <vector>

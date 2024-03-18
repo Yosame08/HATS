@@ -61,15 +61,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
             if(vis[to])continue;
             float angle = top.angle;
             angle += GetTurnAngle(seqPath[top.node].first.roadID, to);
-//            if(RoadLen(to)>5){
-//                for(int oldnode=top.node;oldnode!=-1;oldnode=seqPath[oldnode].second){
-//                    const int roadID = seqPath[oldnode].first.roadID;
-//                    if(RoadLen(roadID)>5){
-//                        angle += GetTurnAngle(roadID, to);
-//                        break;
-//                    }
-//                }
-//            }
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
                 if(allLen>=span*40)continue;
@@ -79,7 +70,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
                 break;
             }
             float totLen = top.len + RoadLen(to);
-            if(totLen>=span*40||top.level>RECOVER_INTERVAL*2)continue;
+            if(totLen>=span*40||top.level>RECOVER_INTERVAL)continue;
             seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
             q.push({top.level+1, (int)seqPath.size()-1, totLen, (float)roads[to].seg[0].line.startLL.dist(nowTr.p), angle+FindAngle(to,0)});
         }
@@ -226,7 +217,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         }
         //nextOut is the next point which refers to a different roadID
         if(p==nextOut){
-            ignoreInfo=false;
+            //ignoreInfo=false;
             for(int x=p-1;x>=0;--x){
                 if(fullPath[x].roadID != now.roadID){
                     nextOut=x;
@@ -237,13 +228,17 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             }
             if(now.roadID == fullPath[nextOut].roadID)nextOut=-1;
         }
+        assert(now.timestamp>0);
         if(p&&fullPath[p-1].timestamp==now.timestamp)continue; // if multiple points have the same timestamp, using the farthest
-        if(nextOut!=-1 && now.timestamp>0){
-            //if(ignoreInfo)continue;
+        //if(nextOut!=-1 && now.timestamp>0){
+        //if(ignoreInfo)continue;
+        if(p){
             long long hour=(now.timestamp%86400/3600+TIMEZONE)%24,sec=now.timestamp%3600;
-            cross << id << ',' << now.roadID << ',' << fullPath[nextOut].roadID << ',' << hour << ',' << sec << ','
-                  << now.toNodeDist << ',' << fullPath[nextOut].timestamp - now.timestamp << '\n';
+            cross << id << ',' << now.roadID << ',' << (nextOut==-1?now.roadID:fullPath[nextOut].roadID) << ',' << hour << ',' << sec << ','
+                  << now.toNodeDist << ',' << fullPath[p-1].timestamp - now.timestamp << '\n';
         }
+        // old:       cross << id << ',' << now.roadID << ',' << fullPath[nextOut].roadID << ',' << hour << ',' << sec << ','
+        //                  << now.toNodeDist << ',' << fullPath[nextOut].timestamp - now.timestamp << '\n';
     }
     fullMatch << '\n';
     for(int i=2;i<=24;++i){
@@ -311,7 +306,7 @@ int main() {
     match<<m<<'\n';
     for(int i=0;i<m;++i)match<<fullStream[i].str();
 
-    ofstream cross(mode+"_traffic_data.csv");
+    ofstream cross("../../Intermediate/"+mode+"_traffic_data.csv");
     cross<<"traj_id,original_path_id,transition_path_id,hour,sec,distance,elapsed\n";
     for(int i=0;i<m;++i)cross<<crossStream[i].str();
 

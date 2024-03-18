@@ -134,7 +134,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
-    //if(id<17)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -220,21 +219,23 @@ void solve(int id){
     PointLL lastPoint = FindLatLon(search[outID].roadID, search[outID].toNodeDist);
     int lastID = search[outID].roadID;
     vector<Path>result;
+    Path* nxtPath = nullptr;
     while(search[outID].prev!=-1){
         auto &node=search[outID];
         if(!myAssert(node.path->size()>=2,"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
         vector<float> *maxPredVel=nullptr;
-        long long minDif = 0;
-        long long tm = traceNow[last.pointID].timestamp;
+        long long minDif = 0, tm = traceNow[last.pointID].timestamp, st = traceNow[0].timestamp;
+        const long long journey = traceNow.back().timestamp-traceNow.front().timestamp;
         float toNodeDist = last.toNodeDist, vel;// = beginVel;
-        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1;
+        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1, red=0;
         auto *predVel = new vector<float>{};
         while(index < node.path->size() - 1){
             while (toNodeDist > 0) {
-                vel = VelPrediction(roadID, toID, toNodeDist, tm);
-                ++tm, toNodeDist -= vel, predVel->push_back(vel);
+                //int skip = toNodeDist>40?(rand()%5+1):1;
+                vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey, red);
+                tm+=1, toNodeDist -= vel, predVel->push_back(vel);
             }
             while (toNodeDist <= 0 && index < node.path->size() - 1){
                 roadID = toID;
@@ -243,8 +244,16 @@ void solve(int id){
             }
         }
         float needPass = toNodeDist - node.toNodeDist;
+        if(nxtPath!= nullptr){
+            for(auto x:*nxtPath){
+                if(x.roadID!=toID){
+                    toID=x.roadID;
+                    break;
+                }
+            }
+        }
         while (needPass > 0) {
-            vel = VelPrediction(roadID, roadID, toNodeDist, tm);
+            vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey, red);
             ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel);
         }
         if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
@@ -260,7 +269,8 @@ void solve(int id){
         }
         else{
             double scale=double(traceNow[node.pointID].timestamp-traceNow[last.pointID].timestamp)/double(minDif-traceNow[last.pointID].timestamp), accu=0;
-            toNodeDist = last.toNodeDist, roadID = last.roadID, index=1;
+            toNodeDist = last.toNodeDist;
+            roadID = last.roadID, index=1;
             auto update = [&](double dist){
                 toNodeDist -= (float)dist;
                 while(toNodeDist <= 0 && index < node.path->size() - 1){
@@ -284,6 +294,7 @@ void solve(int id){
                 accu += scale*(1-used);
             }
         }
+        nxtPath=node.path;
         outID=node.prev;
     }
     long long printStamp = 0;
@@ -309,11 +320,15 @@ void print_progress(int lim, int thread) {
     while (true) {
         int current = progress.load();
         int per = (100 * current) / lim;
+        bool out = false;
         std::cout << "\r[";
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 101; i += 2) {
             int interval = per<10?1:(per<100?2:3);
             if(i < per)std::cout << "■";
-            else if(i == per)std::cout << per << '%';
+            else if(i == per || !out){
+                std::cout << per << '%';
+                out = true;
+            }
             else if(i >= per + interval+1)std::cout << ' ';
         }
         std::cout << "] (" << current << "/" << lim << ") ";
@@ -340,7 +355,7 @@ int main() {
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
-    //m=5000;
+    m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);

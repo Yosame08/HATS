@@ -2,15 +2,11 @@
 #include "traffic.h"
 #include "FuncEst.h"
 #include "funcIO.h"
-#include "maths.h"
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <cassert>
 using namespace std;
-
-std::vector<std::vector<double>> road_vectors(PATH_NUM);
-vector<string> addHeader = {"toNode", "greenProb", "timeTo0", "vel"};
-vector<string> header;
 
 float CycleTime(long long stamp) {
     if(stamp <= 7200) return (7200 - stamp) / 3600.0;
@@ -18,50 +14,82 @@ float CycleTime(long long stamp) {
     return (86400 + 7200 - stamp) / 3600.0;
 }
 
+std::vector<std::vector<double>> road_vectors(PATH_NUM);
+vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journey", "wait", "vel"};
+vector<string> header;
+
 void TaskTurn(){
-    ReadStat("../../train_turn_cnt.txt", true);
+    ReadStat("../../Intermediate/train_turn_cnt.txt", true);
     FitParam(true);
     Output(PARAMTURN,true);
     cout<<"Turn: Finish"<<endl;
-    ReadStat("../../train_difDist_cnt.txt", false);
+    ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
     FitParam(false);
     Output(PARAMLEN,false);
 }
 
+struct Info{
+    double passed, vel, toNode;
+    long long timestamp;
+    int trajID, roadID, toID, begin, elapsed, csvID;
+};
+
 void TaskData(const string &mode, const TrafficHandler& traffics){
-    CSVFile rawTraffic("../../"+mode+"_traffic_data.csv");
-    safe_clog(mode+" Read Finish");
+    CSVFile rawTraffic("../../Intermediate/"+mode+"_traffic_data.csv");
+    safe_clog(mode+" read finish");
     CSVFile dataVel(header);
-    vector<pair<float,int>>past;
+    vector<int>lasting;
+    vector<Info>info;
+    int totTM = 0;
     for(int i=1;i<rawTraffic.size();++i){
         auto &line=rawTraffic[i], &last=rawTraffic[i-1];
         if(last["traj_id"]!=line["traj_id"]){
-            past.clear();
+            assert(lasting.size()<=last["traj_id"]);
+            while(lasting.size()<last["traj_id"])lasting.push_back(0);
+            lasting.push_back(totTM);
+            totTM = 0;
             continue;
         }
-        int roadID = last["original_path_id"], toID = last["transition_path_id"];
-        long long elapsed;
-        double passed, toNodeDist = last["distance"];
-        if(last["original_path_id"]!=line["original_path_id"]) {
-            elapsed = last["elapsed"];
-            if(elapsed==0||elapsed>1024)continue;
-            passed = toNodeDist;
-            toNodeDist /= 2;
-        }
-        else{
-            elapsed = line["sec"]-last["sec"]+(long long)(line["hour"]-last["hour"]+24)%24*3600;
-            if(elapsed==0||elapsed>1024)continue;
-            passed = toNodeDist-line["distance"];
-            toNodeDist = (toNodeDist+line["distance"])/2;
-        }
+        int lastID = last["original_path_id"], lastToID = last["transition_path_id"],
+                nowID = line["original_path_id"],
+                elapsed = last["elapsed"];
+        double passed, lastDist = last["distance"], nowDist = line["distance"];
+        if(lastID == nowID)passed = lastDist-nowDist, lastDist = (lastDist+nowDist)/2;
+        else passed = lastDist, lastDist /= 2;
         double vel = passed/elapsed;
-        if(vel>40||vel<-3)continue;
-        vector<double>newLine;
+
+        long long timestamp = last["hour"]*3600+last["sec"]+elapsed/2;
+        if(vel>=-3 && vel<40){
+            info.push_back(Info{passed, vel, lastDist, timestamp, (int)last["traj_id"], lastID, lastToID, totTM, elapsed, i-1});
+        }
+        totTM += elapsed;
+    }
+    while(lasting.size()<rawTraffic.back()["traj_id"])lasting.push_back(0);
+    lasting.push_back(totTM);
+    safe_clog(mode+" preprocess finish");
+    vector<double>newLine;
+    newLine.reserve(vec_len+addHeader.size());
+    float wait;
+    for(int i=0;i<info.size();++i){
+        if(i&&info[i].trajID==info[i-1].trajID){
+            dataVel.append(newLine);
+            auto &line = rawTraffic[info[i].csvID];
+            long long timestamp = line["hour"]*3600+line["sec"];
+            double toNodeDist = line["distance"];
+            double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
+            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist), CycleTime(timestamp),
+                                     info[i].begin/(double)lasting[info[i].trajID], wait, vel);
+            if(vel<1)wait += info[i-1].elapsed/2.0;
+            else wait = 0;
+        }
+        else wait=0;
         dataVel.append(newLine);
-        long long timestamp= last["hour"]*3600+last["sec"]+elapsed/2;
-        dataVel.back().push_back(road_vectors[roadID], road_vectors[toID], toNodeDist,
-                                 traffics.query(roadID, toID, timestamp, toNodeDist), CycleTime(timestamp), vel<0?0:vel);
-        past.emplace_back(passed<0?0:passed,elapsed);
+        double vel = info[i].vel;
+        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode), CycleTime(info[i].timestamp),
+                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID], wait, vel);
+        if(vel<1)wait += info[i].elapsed/2.0;
+        else wait = 0;
+        //first record, then modify "wait" -> "vel = ... after wait x seconds"
     }
     dataVel.saveTo("../../Intermediate/data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
@@ -69,15 +97,14 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-    //threads.emplace_back(TaskTurn);
+    threads.emplace_back(TaskTurn);
 
     string pref = "vec";
-    for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
     header.insert(header.end(),addHeader.begin(),addHeader.end());
     safe_clog("Start to read files");
     {
-        ifstream file(ROADVECTOR);
+        ifstream file("../../Intermediate/road_vectors.txt");
         int num_roads;
         file >> num_roads;
         for (int i = 0; i <= num_roads; ++i) {
@@ -90,7 +117,7 @@ int main(){
         }
         file.close();
     }
-    TrafficHandler traffics("../../train_traffic_data.csv");
+    TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
     threads.emplace_back(TaskData, "train", traffics);
     threads.emplace_back(TaskData, "valid", traffics);
 

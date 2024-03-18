@@ -12,7 +12,7 @@ map_root = f"../Map/"
 rn = RoadNetworkMapFull(map_root, zone_range=[41.111975, -8.667057, 41.177462, -8.585305], unit_length=50)
 sp_solver = SPSolver(rn, use_ray=False, use_lru=True)
 file_true = '../test_output.txt'
-file_pred = '../RecoveryHistory/3.17.txt'
+file_pred = '../RecoveryHistory/3.18-3.txt'
 
 
 def OpenTraj(filename):
@@ -52,7 +52,7 @@ def calculate_metrics(file_true, file_pred):
     for true_list, pred_list in zip(true, pred):
         length = len(true_list)
         assert length == len(pred_list) and length > 0
-        # if id >= 500:
+        # if id >= 5000:
         #     break
         id += 1
         number += length

@@ -55,7 +55,7 @@ void TrafficHandler::init(const char* filename) {
         if(!ok)continue;
         int id = (int)in[trajid], fromID = (int)in[original], toID = (int)in[transition], h = (int)in[hour], s = (int)in[sec];
         int stamp = h*3600+s, passed = (int)in[elapsed];
-        if(id==last.trajid){
+        if(fromID!=toID && id==last.trajid){
             if(fromID!=last.from){
                 stopped=false;
                 addInterval(last.from,last.to,last.stamp+last.elapsed-2,last.stamp+last.elapsed+2,2);
@@ -83,7 +83,8 @@ void TrafficHandler::init(const char* filename) {
                     }
                 }
             }
-        }else stopped=false;
+        }
+        else stopped=false;
         if(fromID>=lim)lim=fromID+1;
         last={id,fromID,toID,stamp,passed,in[distance]};
     }
