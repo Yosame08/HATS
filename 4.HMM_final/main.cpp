@@ -14,19 +14,16 @@
 #include <thread>
 #include <atomic>
 #include <unordered_set>
+#include <map>
 using namespace std;
 
 G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[524288];
-ostringstream recovStream[524288];//, matchStream[524288];
+ostringstream recovStream[524288], matchStream[524288];
 GridType inGrid;
 vector<float> road_vectors[PATH_NUM];
 void ReadVectors();
-
-float RoadLen(int roadID){
-    return roads[roadID].seg.back().sumPrev;
-}
 
 extern vector<int> times;
 pair<int,int> FindIndex(unsigned long long time){
@@ -61,7 +58,9 @@ double SearchDifDistProb(double dif, int time) {
     return DifDistProb(dif, time);
 }
 
-SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
+SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &lastTr, const Trace &nowTr, double accuProb, double maxProb){
+    const int &fromRoad = old.roadID, &toRoad = now.roadID;
+    const float &toNodeDistA = old.toNodeDist, fromNodeDistB = RoadLen(toRoad) - now.toNodeDist;
     // seqPath is to restore nodes searched. Every node restore information about current road and which node is previous road
     vector<QueueInfo2>seqPath;
     seqPath.reserve(4096);
@@ -120,7 +119,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         }
     }
     // 搜索结束
-    if(result.prob==-1)return result; // Search Failed
+    if(result.prob * accuProb <= maxProb)return {result.prob,-1}; // Search Failed
     result.path = new Path();
     stack<int>choose;
     for(int x=result.node;x!=-1;x=seqPath[x].prev)choose.push(x);
@@ -151,7 +150,7 @@ void solve(int id){
     vector<SearchNode>search;
     search.reserve(found.size());
     for(auto &x:found)
-        search.push_back({x.prob, x.toNodeDist, x.roadID, -1, 0, new Path{{x.roadID, traceNow[0].timestamp, x.toNodeDist}}});
+        search.push_back({x.prob, x.toNodeDist, 0, x.roadID, -1, 0, new Path{{x.roadID, traceNow[0].timestamp, x.toNodeDist}}});
 
     int oldBegin=0, oldEnd=(int)search.size()-1;
     unordered_set<unsigned long long>noPath;
@@ -162,40 +161,36 @@ void solve(int id){
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
-            SearchNode maxNode{0,0,0,0,0,nullptr};
+            SearchNode maxNode{0,0,0,0,0,0,nullptr};
             for(int l=oldBegin;l<=oldEnd;++l){
                 SearchNode &old = search[l];
                 if(traceNow[i].timestamp - traceNow[i-1].timestamp>=65536) throw "Too long interval of trajectory!";
                 unsigned long long hashed = now.roadID | ((unsigned long long)old.roadID << 32llu);
                 if(noPath.count(hashed))continue;
-                Path *path;
-                double traceProb;
+                double traceProb, allProb;
                 if(old.roadID == now.roadID){
-                    path = new Path();
-                    path->push_back({old.roadID,traceNow[i-1].timestamp,old.toNodeDist});
-                    path->push_back({now.roadID,traceNow[i].timestamp,now.toNodeDist});
-                    double ground = old.toNodeDist - now.toNodeDist;
-                    float angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
+                    float ground = old.toNodeDist - now.toNodeDist, angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
                     traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, int(traceNow[i].timestamp-traceNow[i-1].timestamp)) *
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
+                    allProb = old.prob * now.prob * traceProb;
+                    if(allProb > maxNode.prob) {
+                        delete maxNode.path;
+                        maxNode = {allProb, now.toNodeDist, ground, now.roadID, l, i, new Path()};
+                        maxNode.path->push_back({old.roadID, traceNow[i - 1].timestamp, old.toNodeDist});
+                        maxNode.path->push_back({now.roadID, traceNow[i].timestamp, now.toNodeDist});
+                    }
                 }
                 else{
-                    SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
-                                                  RoadLen(now.roadID) - now.toNodeDist, traceNow[i-1], traceNow[i]);
-                    if(result.prob==-1){
-                        noPath.insert(hashed);
+                    double accuProb = old.prob * now.prob;
+                    SearchRes result = SearchRoad(old, now, traceNow[i-1], traceNow[i], accuProb, maxNode.prob);
+                    if(result.length==-1){
+                        if(result.prob==-1)noPath.insert(hashed);
                         continue;
                     }
-                    traceProb = result.prob;
-                    path = result.path;
-                }
-                // now.prob is the difference between GPS point and fullPath point
-                double allProb = old.prob * now.prob * traceProb;
-                if(allProb > maxNode.prob){
+                    allProb = accuProb * result.prob;
                     delete maxNode.path;
-                    maxNode = {allProb, now.toNodeDist, now.roadID, l, i, path};
+                    maxNode = {allProb, now.toNodeDist, result.length, now.roadID, l, i, result.path};
                 }
-                else delete path;
             }
             if(maxNode.prob>0)search.push_back(maxNode);
         }
@@ -204,7 +199,7 @@ void solve(int id){
             int mxPoint=0;double mxProb=-1;
             for (int k = oldBegin; k <= oldEnd; ++k)if(search[k].prob > mxProb)mxProb=search[k].prob, mxPoint=k;
             for(auto &now:found)
-                search.push_back({now.prob, now.toNodeDist, now.roadID, mxPoint, i, new Path{{now.roadID,traceNow[i].timestamp,now.toNodeDist}}});
+                search.push_back({now.prob, now.toNodeDist, 0, now.roadID, mxPoint, i, new Path{{now.roadID,traceNow[i].timestamp,now.toNodeDist}}});
         }
         oldBegin = oldEnd + 1, oldEnd = (int)search.size()-1;
         double maxProb=-1;
@@ -218,23 +213,38 @@ void solve(int id){
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
     PointLL lastPoint = FindLatLon(search[outID].roadID, search[outID].toNodeDist);
     int lastID = search[outID].roadID;
+    // Stat
+    map<int,float>journeyLen;
+    deque<int>fullPath;
+    for(int id = outID; id != -1; id = search[id].prev){
+        for(auto it=search[id].path->rbegin(); it!=search[id].path->rend(); ++it)fullPath.push_front(it->roadID);
+        journeyLen[id] = search[id].length;
+    }
+    float totLen = 0;
+    for(auto &x:journeyLen){
+        float t = x.second;
+        x.second = totLen;
+        totLen += t;
+    }
+    // Interpolation
     vector<Path>result;
     Path* nxtPath = nullptr;
     while(search[outID].prev!=-1){
         auto &node=search[outID];
         if(!myAssert(node.path->size()>=2,"(Bug) Exists a node with no path at trace"+to_string(id)))return;
+
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
         vector<float> *maxPredVel=nullptr;
         long long minDif = 0, tm = traceNow[last.pointID].timestamp, st = traceNow[0].timestamp;
         const long long journey = traceNow.back().timestamp-traceNow.front().timestamp;
-        float toNodeDist = last.toNodeDist, vel;// = beginVel;
-        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1, red=0;
+        float toNodeDist = last.toNodeDist, passed = 0, vel;// = beginVel;
+        int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1;
         auto *predVel = new vector<float>{};
         while(index < node.path->size() - 1){
             while (toNodeDist > 0) {
-                vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey);
-                tm+=1, toNodeDist -= vel, predVel->push_back(vel);
+                vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey); //, (journeyLen[outID] + passed)/totLen
+                tm+=1, toNodeDist -= vel, predVel->push_back(vel), passed += vel;
             }
             while (toNodeDist <= 0 && index < node.path->size() - 1){
                 roadID = toID;
@@ -252,8 +262,8 @@ void solve(int id){
             }
         }
         while (needPass > 0) {
-            vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey);
-            ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel);
+            vel = VelPrediction(roadID, toID, toNodeDist, tm, (tm+1-st)/(double)journey); // , (journeyLen[outID] + passed)/totLen
+            ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel), passed += vel;
         }
         if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
             minDif = tm;
@@ -309,6 +319,11 @@ void solve(int id){
     if(traceNow.back().timestamp!=printStamp)
         recovStream[id]<<traceNow.back().timestamp<<' '<<lastPoint.lat<<' '<<lastPoint.lon<<' '<<lastID<<'\n';
     recovStream[id]<<-id-1<<'\n';
+    while(!fullPath.empty()){
+        matchStream[id]<<fullPath.front()<<' ';
+        fullPath.pop_front();
+    }
+    matchStream[id]<<'\n';
     auto IPH = clock()-beginTM;
     sPhaseTM += SPH, iPhaseTM += IPH;
     for(auto &x:search)delete x.path;
@@ -355,7 +370,7 @@ int main() {
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
     //m=5000;
-    const int num_threads = 16;
+    const int num_threads = 15;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -374,6 +389,11 @@ int main() {
     recovery<<fixed<<setprecision(10);
     for(int i=0;i<m;++i)recovery<<recovStream[i].str();
     recovery.close();
+
+    ofstream full("Full_Matched_Final.txt");
+    full<<m<<'\n';
+    for(int i=0;i<m;++i)full<<matchStream[i].str();
+    full.close();
     return 0;
 }
 

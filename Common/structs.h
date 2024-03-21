@@ -114,7 +114,7 @@ using Path = std::vector<PathNode>;
 
 struct SearchNode{
     double prob;
-    float toNodeDist;
+    float toNodeDist, length;
     int roadID,prev,pointID;
     Path* path;
 };
@@ -158,6 +158,16 @@ struct BitInt{
     unsigned v[(PATH_NUM>>5)+1]{};
     unsigned chk(unsigned x);
     void set(unsigned x);
+};
+
+struct TraceRD{
+    Trace tr;
+    int roadID;
+};
+
+struct Feature{
+    float velAvg, velVar, velMax;
+    int id;
 };
 
 #include <thread>

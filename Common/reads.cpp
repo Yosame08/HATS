@@ -98,3 +98,17 @@ void ReadTraces(const std::string& traceFN, int&m, std::vector<Trace>traces[], b
     }
     clog<<'\n';
 }
+
+int readIntsFromLine(std::ifstream& stream, std::vector<int>& numbers) {
+    std::string line;
+    std::getline(stream, line);
+
+    std::istringstream iss(line);
+    int num, cnt=0;
+
+    while (iss >> num) {
+        numbers.push_back(num);
+        ++cnt;
+    }
+    return cnt;
+}

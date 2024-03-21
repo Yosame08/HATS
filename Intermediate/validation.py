@@ -2,6 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from math import exp, sqrt
 
+granularity = 1
+statBegin = 0
+statEnd = 5000
+
 
 def phi(x):
     # constants
@@ -36,15 +40,13 @@ def func(x):
     x_mu_2 = (x - mu2) * (x - mu2)
     #x_mu_3 = (x - mu3) * (x - mu3)
     a2, b2 = sig1 * sig1, sig2 * sig2
-    return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2))
-        #S2 / CalcArea(mu2, sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2)) + \
-        #(1 - S1 - S2) / CalcArea(mu3, sig3) / (sqrt_2_PI * sig3) * exp(-x_mu_3 / (c2 * 2))
+    return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + \
+            (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2))
 
 plt.figure()
-granularity = 1
 # 你的数据
 data = []
-with open("../ParamTurn.txt", "r") as f:
+with open("ParamTurn.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')
@@ -64,25 +66,32 @@ with open("../ParamTurn.txt", "r") as f:
             i+=1
             y.append(func(i))
         plt.plot(x, y, marker='x', color=(time/360, 0, 0), linewidth=1, markersize=0)
-	    
 
-# fit = [func(i) for i in range(len(data))]
-# area = sum(fit)
-# fit_fixed = np.array(fit) / area
-# loss = 0
-# for i in range(len(data)):
-#     loss += abs(fit_fixed[i] - data[i])
-# data = np.array(data)
+data2 = {}
+with open("train_turn_cnt.txt", "r") as f:
+    inter = 0
+    for line in f:
+        info = line.split(' ')[:-1]
+        if len(info) <= 3:
+            inter = int(info[0])
+            data2[inter] = [0 for _ in range(int((statEnd - statBegin) * (1 / granularity)) + 1)]
+            continue
+        for i in range(len(info)):
+            val = float(info[i]) / granularity
+            if val >= 0:
+                data2[inter][int(val)] += 1
+for key in data2:
+    data2[key] = np.array(data2[key]) / sum(data2[key])
 
-# 创建x轴的值
-# x = np.arange(0, len(data))
-
-# plt.plot(x, fit_fixed, marker='+', color='b', linewidth=1, markersize=2)
 plt.title('p')
 plt.xlabel('Degree')
 plt.ylabel('Sum')
 plt.xlim([0, 1000])
 plt.ylim([0, 0.05])
+x = np.arange(statBegin, statEnd + granularity, granularity)
+for key in data2:
+    val = key / 360
+    plt.plot(x, data2[key], marker='x', color=(val, 0, val), linewidth=1, markersize=1)
 
 # 显示图形
 plt.tight_layout()

@@ -2,7 +2,7 @@
 #undef TRACEFILE
 
 #include <string>
-const std::string mode = "train";
+const std::string mode = "valid";
 #define TRACEFILE ("../../"+mode+"_input.txt")
 
 #include "structs.h"
@@ -23,14 +23,10 @@ G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[524288];
 ostringstream fullStream[524288], crossStream[524288];
+//Feature feature[524288];
 GridType inGrid;
 vector<float>turnAngles[256][25];
 vector<float>difDists[256][25];
-
-
-double RoadLen(int roadID){
-    return roads[roadID].seg.back().sumPrev;
-}
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -46,7 +42,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     seqPath.push_back({{fromRoad, lastTr.timestamp, toNodeDistA}, -1});
     q.push(QInfo{1, 0, toNodeDistA, greatCircle, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
     if(q.top().angle<0)
-        cout<<"Wrong";
+        cout<<"(Bug) angle less than 0 [step 0: main.cpp]";
     assert(q.top().angle>=0);
     SearchRes result{-1};
     bool fin=false;
@@ -109,18 +105,18 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>length, angles;
     int matched[traceNow.size()];
-    FindRoad(40, 40, traceNow[0].p, found);
+    FindRoad(30, 30, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
-        search.push_back({x.prob,x.toNodeDist,x.roadID,-1,0,new Path{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
+        search.push_back({x.prob,x.toNodeDist,0,x.roadID,-1,0,new Path{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
         length.push_back(0), angles.push_back(0);
     }
     int oldBegin=0, oldEnd=(int)search.size()-1;
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(40, 40, traceNow[i].p, found);
+        FindRoad(30, 30, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
@@ -151,7 +147,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 double allProb = old.prob * now.prob * traceProb;
                 if (allProb > maxNode.prob){
                     delete maxNode.path;
-                    maxNode = {allProb, now.toNodeDist, now.roadID, l, i, path};
+                    maxNode = {allProb, now.toNodeDist, ground, now.roadID, l, i, path};
                     maxNodeLen = ground, maxAngle = angle;
                 }
                 else delete path;
@@ -176,11 +172,10 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     // Get the full trace
     Path fullPath;
     int recent24[25]{};
-    vector<float>difSingle[25];
-    vector<float>turnStash[25];
-    while(outID!=-1){
-        const auto &node=search[outID];
 
+    vector<float>difSingle[25], turnStash[25], vels;
+    while(true){
+        const auto &node=search[outID];
         // 1. Stat: distance difference and angle turned
         if(node.prev!=-1){
             float totLen=0, totAngle=0;
@@ -204,9 +199,12 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             fullPath.push_back((*node.path)[i]);
         }
         matched[node.pointID]=node.path->back().roadID;
+        if(node.prev==-1)break;
         outID=node.prev;
     }
+    // feature[id]={journeyLen/(float)journeyTime, 0, 0, id};
     int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear;
+    // float journeyLen = -search[outID].toNodeDist; long long journeyTime = traceNow.back().timestamp-traceNow.front().timestamp;
     // bool ignoreInfo = false;
     cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
@@ -268,7 +266,7 @@ void print_progress(int lim) {
         std::cout << "] (" << current_progress << "/" << lim << ") [" << unmatched << " not matched]";
         std::cout << std::flush;
         if (current_progress >= lim) break;
-        this_thread::sleep_for(std::chrono::milliseconds(1000));
+        this_thread::sleep_for(std::chrono::milliseconds(2000));
     }
     cout << endl;
 }
@@ -302,7 +300,7 @@ int main() {
 
     clog<<"Output..."<<endl;
 
-    ofstream match(mode+"_full_matched.txt");
+    ofstream match("../../Intermediate/"+mode+"_full_matched.txt");
     match<<m<<'\n';
     for(int i=0;i<m;++i)match<<fullStream[i].str();
 
@@ -310,7 +308,7 @@ int main() {
     cross<<"traj_id,original_path_id,transition_path_id,hour,sec,distance,elapsed\n";
     for(int i=0;i<m;++i)cross<<crossStream[i].str();
 
-    ofstream turnCount(mode+"_turn_cnt.txt"), difDistCount(mode+"_difDist_cnt.txt");
+    ofstream turnCount("../../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../../Intermediate/"+mode+"_difDist_cnt.txt");
     turnCount<<fixed<<setprecision(1);
     difDistCount<<fixed<<setprecision(1);
     for(int j=2;j<=24;++j){

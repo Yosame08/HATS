@@ -77,14 +77,6 @@ double Angle(const Vector &a, const Vector &b) {
     return std::acos(cosVal);
 }
 
-int distToTwo(int hour) {
-    int distance = std::abs(hour - 2);
-    if (distance > 12) {
-        distance = 24 - distance;
-    }
-    return distance;
-}
-
 float CycleTime(long long stamp) {
     if(stamp <= 7200) return (7200 - stamp) / 3600.0;
     if(stamp < 14*3600) return (stamp - 7200) / 3600.0;

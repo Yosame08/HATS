@@ -15,8 +15,8 @@
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
 #define vec_len 12
-#define granular_turn 2 // for calculating the probability of turning
-#define granular_len 2 // for calculating the probability of turning
+#define granular_turn 1 // for calculating the probability of turning
+#define granular_len 1 // for calculating the probability of turning
 #include <vector>
 #include <unordered_map>
 #include <string>
@@ -34,5 +34,6 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found
  */
 float FindAngle(int roadID, double toNodeDist);
 PointLL FindLatLon(int roadID, float toNodeDist);
+float RoadLen(int roadID);
 
 #endif //MYDEFINES_H

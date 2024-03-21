@@ -82,10 +82,7 @@ for seq in sequences:
 
 vec_size = 9
 # 使用Word2Vec训练
-model = Word2Vec(sequences, vector_size=vec_size, window=2, min_count=1, workers=8, sg=0)
-
-# 保存模型
-model.save("road_embedding.model")
+model = Word2Vec(sequences, vector_size=vec_size, window=2, min_count=2, workers=8, sg=0)
 
 # 将每条道路的向量保存到文件中
 with open('../Intermediate/road_vectors.txt', 'w') as f:

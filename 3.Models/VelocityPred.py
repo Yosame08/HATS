@@ -51,7 +51,7 @@ valid_losses = []
 for times in range(4):
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
     for epoch in range(100):  # 请根据你的需求调整迭代次数
         startTM = time.time()
@@ -93,11 +93,11 @@ for times in range(4):
 
 model = model.to(torch.device("cpu"))  # 保存为CPU上的模型，HMM中使用CPU跑小数据
 # 保存模型
-torch.save(model.state_dict(), 'model_vel.pth')
+torch.save(model.state_dict(), '../Intermediate/model_vel.pth')
 
 # 保存模型
 example_input = torch.rand(1, X_train.shape[1])  # 这是一个输入示例
 traced_script_module = torch.jit.trace(model, example_input)
 
 # 保存TorchScript模型
-traced_script_module.save("model_vel.pt")
+traced_script_module.save("../Intermediate/model_vel.pt")

@@ -16,17 +16,14 @@ TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
 extern vector<float> road_vectors[PATH_NUM];
 float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp, float percent){
     vector<float>inputs(road_vectors[roadID]);
-    //for(auto x:road_vectors[toID])inputs.push_back(x);
-    inputs.push_back(toNodeDist);
+    inputs.push_back(toNodeDist/1000);
     inputs.push_back(traffics.query(roadID, toID, timestamp%86400, toNodeDist));
     inputs.push_back(CycleTime(timestamp%86400));
     inputs.push_back(percent);
-    //inputs.push_back(vel);
+    //inputs.push_back(distLeft);
     torch::Tensor input = torch::from_blob(inputs.data(), {1, static_cast<int64_t>(inputs.size())}, torch::kFloat);
     torch::Tensor output = moduleVel.forward({input}).toTensor();
     auto out = output.item<float>();
     if(out<0.01)out=0.01;
-//    if(out<2)++red;
-//    else red=0;
     return out;
 }

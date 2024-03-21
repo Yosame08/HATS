@@ -8,5 +8,5 @@
 void ReadRoadNet(const std::string&, const std::string&, G&, Road[],
                  GridType&);
 void ReadTraces(const std::string&, int&, std::vector<Trace>traces[], bool=false, bool=true);
-
+int readIntsFromLine(std::ifstream& stream, std::vector<int>& numbers);
 #endif //READS_H

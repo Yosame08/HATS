@@ -66,3 +66,7 @@ PointLL FindLatLon(int roadID, float toNodeDist){
     float ratio = (seg.sumAfter - toNodeDist) / seg.line.len;
     return seg.line.startLL + dir * ratio;
 }
+
+float RoadLen(int roadID){
+    return roads[roadID].seg.back().sumPrev;
+}

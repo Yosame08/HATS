@@ -18,7 +18,7 @@ using namespace std;
  */
 
 vector<int> times;
-const int mxTurn = 6000 / granular_turn + 1, mxLen = 6000 / granular_len + 1;
+const int mxTurn = 5000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
 const int mxMissing = 30;
 vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
 enum pName{
@@ -151,16 +151,16 @@ void FindOneParam(pName name, double areaLeft, int id, double param[], const dou
 
 void FindRoughParam(int id, double param[], bool turn){
     auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
-    for(double v1=10;v1<=500;v1+=10) {
+    for(double v1 = 20;v1 <= 600;v1 += 20) {
         param[sig1] = v1;
         cacheArr[sig1] = param[sig1] * param[sig1] * 2;
         for (double v2 = 0.1; v2 < 1; v2 += 0.1) {
             param[S1] = v2;
             cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
-            for (double v3 = 10; v3 <= 500; v3 += 10) {
+            for (double v3 = 20; v3 <= 600; v3 += 20) {
                 param[sig2] = v3;
                 cacheArr[sig2] = param[sig2] * param[sig2] * 2;
-                for (double v4 = 10; v4 <= 500; v4 += 10) {
+                for (double v4 = 20; v4 <= 600; v4 += 20) {
                     param[mu2] = v4;
                     cacheArr[mu2] = (1 - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
                     EstiUpdate(id, param, cacheArr, turn);
@@ -182,15 +182,15 @@ void FindParam(int id, bool turn){
     lostVal = 1e300;
     FindRoughParam(id,param,turn);
     updateParam();
-    double step[] = {3, 0.03,3, 3};
+    double step[] = {5, 0.05,5, 5};
     safe_cout(to_string(id)+" Finding precise parameters...");
     for(int i=1;i<=20;++i){
         lostVal = 1e300;
         FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
         updateParam();
         for(int j=0;j<Size;++j){
-            if(param[j] == origin_param[j] - step[j] * width || param[j] == origin_param[j] + step[j] * width)continue;
-            step[j] /= 2;
+            if(param[j] <= origin_param[j] - step[j] * (width-1) || param[j] >= origin_param[j] + step[j] * (width-1))continue;
+            step[j] /= 3;
         }
     }
     stringstream str;
