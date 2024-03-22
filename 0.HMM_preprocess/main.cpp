@@ -105,7 +105,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>length, angles;
     int matched[traceNow.size()];
-    FindRoad(30, 30, traceNow[0].p, found);
+    FindRoad(40, 40, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
@@ -116,7 +116,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(30, 30, traceNow[i].p, found);
+        FindRoad(40, 40, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;

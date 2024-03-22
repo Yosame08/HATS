@@ -12,7 +12,7 @@ map_root = f"../Map/"
 rn = RoadNetworkMapFull(map_root, zone_range=[41.111975, -8.667057, 41.177462, -8.585305], unit_length=50)
 sp_solver = SPSolver(rn, use_ray=False, use_lru=True)
 file_true = '../test_output.txt'
-file_pred = '../RecoveryHistory/3.21.txt'
+file_pred = '../RecoveryHistory/3.22-4.txt'
 
 
 def OpenTraj(filename):

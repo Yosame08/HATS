@@ -61,7 +61,7 @@ void TrafficHandler::init(const char* filename) {
                 addInterval(last.from,last.to,last.stamp+last.elapsed-2,last.stamp+last.elapsed+2,2);
 //                double vel=last.dist/last.elapsed;
 //                if(vel<1&&last.elapsed>5)
-//                    addInterval(last.from,last.to,last.stamp-last.dist/5*1.2,last.stamp+last.elapsed/2-last.dist/5*1.2,-1);//stop->move
+//                    addInterval(last.from,last.to,last.stamp-last.dist/5*1.5,last.stamp+last.elapsed/2-last.dist/5*1.5,-1);//stop->move
             }
             else{
                 double vel = (last.dist-in[distance])/(stamp-last.stamp);
@@ -72,14 +72,14 @@ void TrafficHandler::init(const char* filename) {
                 if(in[distance]<300){ // approaching crossing
                     if(vel<=1){ // when sig1 vehicle stops for 5+ sec
                         stopped=true;
-                        int correction = in[distance]/5*1.2;
+                        int correction = in[distance]/5*1.5;
                         //if(last.stamp-correction>stamp-correction)cout<<"1 "<< last.stamp-correction << ' ' << stamp-correction<<endl;
                         addInterval(fromID,toID,last.stamp-correction,stamp-correction,-2);
                     }
                     else if(stopped && vel>2){ // when sig1 stopped vehicle moves
                         stopped=false;
-                        //if(last.stamp-last.dist/5*1.2>stamp-in[distance]/5*1.2)cout<<"2 "<< last.stamp-last.dist/5*1.2 << ' ' << stamp-in[distance]/5*1.2;
-                        addInterval(fromID,toID,last.stamp-last.dist/5*1.2,stamp-in[distance]/5*1.2,1);
+                        //if(last.stamp-last.dist/5*1.5>stamp-in[distance]/5*1.5)cout<<"2 "<< last.stamp-last.dist/5*1.5 << ' ' << stamp-in[distance]/5*1.5;
+                        addInterval(fromID,toID,last.stamp-last.dist/5*1.5,stamp-in[distance]/5*1.5,1);
                     }
                 }
             }
@@ -99,7 +99,7 @@ double Normal(double x){
 }
 
 double TrafficHandler::query(int roadID, int toID, long long timestamp, float toNodeDist) const{
-    timestamp -= toNodeDist/5*1.2;
+    timestamp -= toNodeDist/5*1.5;
     revise(timestamp);
     if(toID==roadID)return 0.5;//no considering lights
     if(!lights[roadID].count(toID))return 1/(1+exp(-1));
