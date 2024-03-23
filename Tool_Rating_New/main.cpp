@@ -17,8 +17,35 @@ double accuAll, maeAll, rmseAll, rn_maeAll, rn_rmseAll, recAll, precAll, f1All;
 
 /// Solve the largest common sequence of a and b
 /// @param result the LCS of a and b
+/// @param a array begins with 0
+/// @param b array begins with 0
 void LCS(const vector<int> &a, const vector<int> &b, vector<int> &result){
-
+    int **dp = new int*[a.size()];
+    int **prv = new int*[a.size()];
+    for(int i=1;i<a.size();++i){
+        dp[i] = new int[b.size()];
+        prv[i] = new int[b.size()];
+        for(int j=1;j<b.size();++j){
+            if(dp[i-1][j]>dp[i][j-1]){
+                dp[i][j] = dp[i-1][j];
+                prv[i][j] = (i-1)*b.size()+j;
+            }
+            else{
+                dp[i][j] = dp[i][j-1];
+                prv[i][j] = i*b.size()+j-1;
+            }
+            if(dp[i-1][j-1]+1>dp[i][j]){
+                dp[i][j] = dp[i-1][j-1]+1;
+                prv[i][j] = (i-1)*b.size()+j-1;
+            }
+        }
+    }
+    for(int i=1;i<a.size();++i){
+        delete[] dp[i];
+        delete[] prv[i];
+    }
+    delete[] dp;
+    delete[] prv;
 }
 
 int main(){

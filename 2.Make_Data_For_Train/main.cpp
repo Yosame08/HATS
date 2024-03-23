@@ -81,14 +81,14 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
             double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
             passed += info[i-1].passed;
             dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist/1000, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist), CycleTime(timestamp),
-                                     info[i].begin/(double)lasting[info[i].trajID].first, vel); // (lasting[info[i].trajID].second-passed)/1000,
+                                     info[i].begin/(double)lasting[info[i].trajID].first, vel);
         }
         else passed = 0;
         dataVel.append(newLine);
         double vel = info[i].vel;
         passed += info[i].passed;
         dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode), CycleTime(info[i].timestamp),
-                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first,  vel); // (lasting[info[i].trajID].second-passed)/1000,
+                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first,  vel);
     }
     dataVel.saveTo("../../Intermediate/data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
@@ -96,7 +96,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-    threads.emplace_back(TaskTurn);
+    //threads.emplace_back(TaskTurn);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));

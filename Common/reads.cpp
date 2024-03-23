@@ -99,6 +99,38 @@ void ReadTraces(const std::string& traceFN, int&m, std::vector<Trace>traces[], b
     clog<<'\n';
 }
 
+void ReadTracesWithRoad(const std::string& traceFN, int&m, std::vector<TraceRD>traces[]){
+    cout<<"Reading Traces..."<<endl;
+    ifstream tr(traceFN);
+    long long repeat=1;
+    for(m=0;!tr.eof();++m){
+        if(m&&m%1024==0)clog<<"\rRead "<<m/1024<<"K trajectories";
+        bool ok=true;
+        while(true){
+            long long stamp;
+            int roadID;
+            double lat, lon;
+            tr>>stamp;
+            if(stamp<1){
+                if(repeat == stamp){
+                    --m;
+                    break;
+                }
+                repeat = stamp;
+                break;
+            }
+            tr>>lat>>lon>>roadID;
+            if(!traces[m].empty()&&abs(stamp-traces[m].back().tr.timestamp)!=RECOVER_INTERVAL){
+                cerr<<"In trace "<<m<<", interval is not "<<RECOVER_INTERVAL<<", ignore"<<endl;
+                ok=false;
+            }
+            if(ok)traces[m].push_back({{{lat,lon},stamp},roadID});
+        }
+        if(!ok)--m;
+    }
+    clog<<'\n';
+}
+
 int readIntsFromLine(std::ifstream& stream, std::vector<int>& numbers) {
     std::string line;
     std::getline(stream, line);
