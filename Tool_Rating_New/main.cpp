@@ -93,4 +93,5 @@ int main(){
     cout<<"Straight RMSE = "<<rmseAll/m<<'\n';
     cout<<"Road Net MAE = "<<rn_maeAll/m<<'\n';
     cout<<"Road Net RMSE = "<<rn_rmseAll/m<<'\n';
+    return 0;
 }
