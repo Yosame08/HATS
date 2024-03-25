@@ -20,42 +20,43 @@ double accuAll, maeAll, rmseAll, rn_maeAll, rn_rmseAll, recAll, precAll, f1All;
 /// @param a array begins with 0
 /// @param b array begins with 0
 void LCS(const vector<int> &a, const vector<int> &b, vector<int> &result){
-    int **dp = new int*[a.size()];
-    int **prv = new int*[a.size()];
-    for(int i=1;i<a.size();++i){
-        dp[i] = new int[b.size()];
-        prv[i] = new int[b.size()];
-        for(int j=1;j<b.size();++j){
-            if(dp[i-1][j]>dp[i][j-1]){
-                dp[i][j] = dp[i-1][j];
-                prv[i][j] = (i-1)*b.size()+j;
-            }
-            else{
-                dp[i][j] = dp[i][j-1];
-                prv[i][j] = i*b.size()+j-1;
-            }
-            if(dp[i-1][j-1]+1>dp[i][j]){
-                dp[i][j] = dp[i-1][j-1]+1;
-                prv[i][j] = (i-1)*b.size()+j-1;
-            }
+    int m = a.size();
+    int n = b.size();
+    vector<vector<int>> dp(m + 1, vector<int>(n + 1, 0));
+
+    for (int i = 1; i <= m; i++) {
+        for (int j = 1; j <= n; j++) {
+            if(a[i-1] == b[j-1])dp[i][j] = dp[i - 1][j - 1] + 1;
+            else dp[i][j] = max(dp[i-1][j], dp[i][j-1]);
         }
     }
-    for(int i=1;i<a.size();++i){
-        delete[] dp[i];
-        delete[] prv[i];
+
+    int i = m, j = n;
+    while (i > 0 && j > 0) {
+        if (a[i-1] == b[j-1]) {
+            result.push_back(a[i-1]);
+            --i;
+            --j;
+        }
+        else if (dp[i - 1][j] > dp[i][j - 1]) --i;
+        else --j;
     }
-    delete[] dp;
-    delete[] prv;
+    std::reverse(result.begin(), result.end());
 }
 
 int main(){
+    vector<int>res;
+    LCS({1,5,3,4,9,9,20,4},{1,1,1,1,1,9,4,4,20},res);
+    for(auto x:res)clog<<x<<' ';
+    return 0;
+
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTracesWithRoad("../../test_output.txt", m, traceOut);
-    ReadTracesWithRoad("cmake-build-debug/my_output.txt", m, traceSTD);
-    ifstream fullOUT("cmake-build-debug/Full_Matched_Dij.txt");
-    ifstream fullSTD("cmake-build-debug/Full_Matched_STD.txt");
+    ReadTracesWithRoad("my_output.txt", m, traceSTD);
+    ifstream fullOUT("Full_Matched_Dij.txt");
+    ifstream fullSTD("Full_Matched_STD.txt");
     int m1,m2;
     fullOUT >> m1; fullSTD >> m2;
     assert(m==m1 && m==m2);

@@ -5,4 +5,4 @@ set(CMAKE_CXX_STANDARD 17)
 set(COMMON_DIR "../Common")
 include_directories(${COMMON_DIR})
 
-add_executable(Tool_Rating_New main.cpp ${COMMON_DIR}/reads.cpp)
+add_executable(Tool_Rating_New main.cpp ${COMMON_DIR}/reads.cpp ${COMMON_DIR}/structs.cpp ${COMMON_DIR}/maths.cpp)

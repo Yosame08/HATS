@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <atomic>
+#include <cassert>
 using namespace std;
 
 G g;
@@ -84,7 +85,16 @@ void process(int start, int end){
             paths.push_back(traceNow[i].roadID);
         }
         ++progress;
-        for(auto &x:paths)matchStream[j]<<x<<' ';
+        matchStream[j]<<paths[0]<<' ';
+        int last = paths[0];
+        for(int i=1;i<paths.size();++i){
+            if(paths[i]==last)continue;
+            auto &connect = g.node[roads[last].to];
+            //clog<<i<<": "<<last<<"->"<<paths[i]<<endl;
+            //assert(std::find(connect.begin(), connect.end(),paths[i]) != connect.end());
+            matchStream[j]<<paths[i]<<' ';
+            last = paths[i];
+        }
     }
 }
 
@@ -92,9 +102,9 @@ int main(){
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
-    ReadTracesWithRoad("cmake-build-debug/output.txt", m, traces);
+    ReadTracesWithRoad("../../test_output.txt", m, traces);
 
-    const int num_threads = 1;
+    const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
