@@ -104,7 +104,7 @@ void ReadTracesWithRoad(const std::string& traceFN, int&m, std::vector<TraceRD>t
     ifstream tr(traceFN);
     long long repeat=1;
     for(m=0;!tr.eof();++m){
-        if(m&&m%1024==0)clog<<"\rRead "<<m/1024<<"K trajectories";
+        if(m&&m%1024==0)cout<<"\rRead "<<m/1024<<"K trajectories"<<flush;
         bool ok=true;
         while(true){
             long long stamp;
@@ -128,7 +128,7 @@ void ReadTracesWithRoad(const std::string& traceFN, int&m, std::vector<TraceRD>t
         }
         if(!ok)--m;
     }
-    clog<<'\n';
+    cout<<'\n';
 }
 
 int readIntsFromLine(std::ifstream& stream, std::vector<int>& numbers) {
@@ -136,10 +136,12 @@ int readIntsFromLine(std::ifstream& stream, std::vector<int>& numbers) {
     std::getline(stream, line);
 
     std::istringstream iss(line);
-    int num, cnt=0;
+    int num, cnt=0, last = -1;
 
     while (iss >> num) {
+        if(last==num)continue;
         numbers.push_back(num);
+        last = num;
         ++cnt;
     }
     return cnt;

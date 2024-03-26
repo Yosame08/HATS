@@ -319,8 +319,12 @@ void solve(int id){
     if(traceNow.back().timestamp!=printStamp)
         recovStream[id]<<traceNow.back().timestamp<<' '<<lastPoint.lat<<' '<<lastPoint.lon<<' '<<lastID<<'\n';
     recovStream[id]<<-id-1<<'\n';
+    int lastRoad = -1;
     while(!fullPath.empty()){
-        matchStream[id]<<fullPath.front()<<' ';
+        int ID = fullPath.front();
+        if(ID==lastRoad)continue;
+        matchStream[id]<<ID<<' ';
+        lastRoad = ID;
         fullPath.pop_front();
     }
     matchStream[id]<<'\n';
