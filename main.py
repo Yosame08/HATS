@@ -1,6 +1,27 @@
-# required: pytorch, libtorch(for C++, please modify CMakeLists.txt in HMM_final dir)
+'''
+required: python3, pytorch, C++ Toolchain(cmake, make, g++), libtorch for C++
+modify before running:
+    main.py:12-14 file_train file_valid file_test
+        trajectory files for training, validation and test
+    Common/definitions.h:6 TRACEFILE
+        change this macro to ../ + file_test in main.py
+    Common/definitions.h:12 TIMEZONE
+    	change this macro to the time zone of the region to which the trajectories corresponds
+    Common/definitions.h:16 RECOVER_INTERVAL
+        change this macro to the time interval you want to recover
+    0.HMM_preprocess/CMakeLists.txt
+    2.Make_Data_For_Train/CMakeLists.txt
+    4.HMM_final/CMakeLists.txt
+    Tool_Rating_New/CMakeLists.txt
+    Tool_Shortest_Path/CMakeLists.txt
+        change cmake_minimum_required version to your cmake version
+parameters to be specified to run the script:
+    --threads x
+        Use x threads for cpp programs. This argument doesn't affect torch.
+run example:
+    python main.py --threads 8
+'''
 import sys
-
 import torch
 import os
 import subprocess
@@ -8,7 +29,7 @@ import argparse
 
 file_train = 'train_input.txt'
 file_valid = 'valid_input.txt'
-file_test = 'test_input.txt'
+file_test = 'test_sampled.txt'
 thread = 1
 
 def stat_num(filename):
@@ -24,7 +45,7 @@ def file_find(directory, filename):
     return filename in os.listdir(directory)
 
 
-# 函数2：Python执行shell指令并实时输出shell中的内容
+# Python执行shell指令并实时输出shell中的内容
 def exec_cmd(command):
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -40,20 +61,21 @@ def exec_cmd(command):
 
 
 def exec_cmd_in(directory, command):
-    # 保存当前工作目录
+    # save the working directory now
     current_dir = os.getcwd()
     os.chdir(directory)
 
     try:
+        print(f"[Execute] {command}")
         rc = exec_cmd(command)
     except subprocess.CalledProcessError as e:
         print(f"命令执行失败，错误信息：{e}")
-        # 切换回原来的工作目录
+        # switch to the original working directory
         os.chdir(current_dir)
-        # 抛出异常
+        # throw an error
         raise RuntimeError("命令执行失败") from e
 
-    # 切换回原来的工作目录
+    # switch to the original working directory
     os.chdir(current_dir)
 
 def check_cpp(directory, filename):
@@ -62,54 +84,57 @@ def check_cpp(directory, filename):
         try:
             exec_cmd_in(directory, "cmake . && make")
         except:
-            print("cmake . && make Failed. If it was caused by cmake version, you can modify CMakeLists.txt manually.")
+            print(f"cmake . && make in {directory} failed.\n"
+                  "If it was caused by cmake version, you can modify CMakeLists.txt manually.")
             exit(-1)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Main script to run trajectory recover.\n"
-                                                 "Example usage: python3 main.py --threads 8")
+                                                 "Example usage: python main.py --threads 8")
     parser.add_argument('--threads', type=int, default=1,
                         help="Number of threads for CPP code to use. This option don't effect python code(torch library)."  )
     args = parser.parse_args()
 
     # Step 0: Check if all cpp files are compiled and check system environment
-    print("Step 0/5: Check system environment and input files")
-    check_cpp('1.HMM_preprocess', 'HMM_pre')
-    check_cpp('2.Lights_process', 'Lights')
-    check_cpp('3.Make_Training_Data', 'Make_Data')
-    check_cpp('5.HMM_final', 'HMM_final')
-    print(" - All cpp files are compiled.")
+    print("Check system environment and input files")
+    check_cpp('0.HMM_preprocess', 'HMM_pre')
+    check_cpp('2.Make_Data_For_Train', 'Make_Data')
+    check_cpp('4.HMM_final', 'HMM_final')
+    check_cpp('Tool_Rating_New', 'Tool_Rating_New')
+    check_cpp('Tool_Shortest_Path', 'Tool_Shortest_Path')
+    print("[Info] All cpp files are compiled.")
     if torch.cuda.is_available():
         device = 'cuda'
     else:
         device = 'cpu'
-    print(f" - Use device {device}")
+    print(f"[Info] Use device {device}")
     num_train = stat_num(file_train)
     num_valid = stat_num(file_valid)
     num_test = stat_num(file_test)
 
 
     # Step 1: Run HMM for preprocess
-    print("Step 1/5: Run HMM for preprocess")
-    exec_cmd_in('1.HMM_preprocess', f'./HMM_pre -tr {num_train} -th {args.threads} -t')
-    exec_cmd_in('1.HMM_preprocess', f'./HMM_pre -tr {num_valid} -th {args.threads} -v')
+    print("Step 1/5: Running HMM for preprocessing at high precision trajectories")
+    exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -t')
+    exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -v')
 
     # Step 2: Parse trace data
-    print("Step 2/5: Parse trace data for training")
-    exec_cmd_in('2.Lights_process', f'./Lights -th {args.threads} -t')
-    exec_cmd_in('2.Lights_process', f'./Lights -th {args.threads} -v')
+    print("Step 2/5: Embedding road vectors based on preprocessing results")
+    exec_cmd_in('1.Embed_Roads', f'{sys.executable} main.py')
 
     # Step 3: Generate data for training
-    print("Step 3/5: Generate data for training")
-    exec_cmd_in('3.Make_Training_Data', f'./Make_Data -th {args.threads} -t')
-    exec_cmd_in('3.Make_Training_Data', f'./Make_Data -th {args.threads} -v')
+    print("Step 3/5: Fit parameters and generate training data")
+    exec_cmd_in('2.Make_Data_For_Train', f'./Make_Data -th {args.threads}')
 
     # Step 4: Train models
     print("Step 4/5: Train models")
-    exec_cmd_in('4.Models', f'{sys.executable} TrafficPred.py')
-    exec_cmd_in('4.Models', f'{sys.executable} VelocityPred.py')
+    exec_cmd_in('3.Models', f'{sys.executable} VelocityPred.py')
 
     # Step 5: Recover traces by HMM and models
-    print("Step 5/5: Recover traces by HMM and models")
-    exec_cmd_in('5.HMM_final', f'./HMM_final -tr {num_test} -th {args.threads}')
+    print("Step 5/5: Recover trajectories by LSHMM and models")
+    exec_cmd_in('4.HMM_final', f'./HMM_final -th {args.threads}')
+    
+    # Rate the recovery results
+    print("Rating")
+    exec_cmd_in('Tool_Shortest_Path', './Tool_Shortest_Path')

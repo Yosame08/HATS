@@ -191,6 +191,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 turnStash[i].push_back(totAngle);
             }
             for(int i=24;i>=1;--i)recent24[i]=recent24[i-1];
+            vels.push_back(recent24[1]);
         }
 
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
