@@ -95,7 +95,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 float allLen = lastInfo.len + fromNodeDistB;
                 if(allLen >= float(span) * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
-                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span);
+                double outProb = DifDistProb(allLen, span) * AngleProb(angle, span); //- greatCircle
                 if(outProb > result.prob){
                     seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(toRoad)},
                                        lastNode, lastInfo.level+1, allLen, angle});
@@ -115,7 +115,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode, lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), seqSize++});
+            q.push({SearchDifDistProb(totLen, span) * AngleProb(angle, span), seqSize++}); // - greatCircle
         }
     }
     // 搜索结束
@@ -170,7 +170,7 @@ void solve(int id){
                 double traceProb, allProb;
                 if(old.roadID == now.roadID){
                     float ground = old.toNodeDist - now.toNodeDist, angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, int(traceNow[i].timestamp-traceNow[i-1].timestamp)) *
+                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p), int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * // - ground
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
                     allProb = old.prob * now.prob * traceProb;
                     if(allProb > maxNode.prob) {
@@ -322,7 +322,10 @@ void solve(int id){
     int lastRoad = -1;
     while(!fullPath.empty()){
         int ID = fullPath.front();
-        if(ID==lastRoad)continue;
+        if(ID==lastRoad){
+            fullPath.pop_front();
+            continue;
+        }
         matchStream[id]<<ID<<' ';
         lastRoad = ID;
         fullPath.pop_front();
@@ -374,7 +377,7 @@ int main() {
     ReadVectors();
     LoadParam(PARAMTURN,PARAMLEN);
     //m=5000;
-    const int num_threads = 15;
+    const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
