@@ -48,7 +48,7 @@ model = nn.Sequential(
 print("Start training...")
 valid_losses = []
 # 训练模型
-for times in range(4):
+for times in range(5):
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
