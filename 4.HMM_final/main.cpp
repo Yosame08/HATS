@@ -17,6 +17,7 @@
 #include <map>
 using namespace std;
 
+FunctionFit parTurn(PARAMTURN), parLenPos(PARAMLENPOS), parLenNeg(PARAMLENNEG);
 G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[524288];
@@ -25,8 +26,8 @@ GridType inGrid;
 vector<float> road_vectors[PATH_NUM];
 void ReadVectors();
 
-extern vector<int> times;
 pair<int,int> FindIndex(unsigned long long time){
+    const auto &times = parTurn.times;
     int l, r;
     auto f = lower_bound(times.begin(), times.end(), time);
     if(f==times.end()) l = r = int(times.size()-1); // time > maximum interval
@@ -43,14 +44,16 @@ pair<int,int> FindIndex(unsigned long long time){
 /// @brief Convert radians to angles and predict with the fitted function
 double AngleProb(double angle, int time){
     auto id = FindIndex(time);
-    if(id.first==id.second)return Estimate_wrap(angle*180/M_PI, id.first, true);
-    return (Estimate_wrap(angle*180/M_PI, id.first, true)+Estimate_wrap(angle*180/M_PI, id.second, true))/2;
+    if(id.first==id.second)return parTurn.Estimate_wrap(angle*180/M_PI, id.first);
+    return (parTurn.Estimate_wrap(angle*180/M_PI, id.first)
+            +parTurn.Estimate_wrap(angle*180/M_PI, id.second))/2;
 }
 
 double DifDistProb(double dif, int time) {
+    const auto &use = dif<0?parLenNeg:parLenPos;
     auto id = FindIndex(time);
-    if(id.first==id.second)return Estimate_wrap(dif,id.first,false);
-    return (Estimate_wrap(dif,id.first,false)+Estimate_wrap(dif,id.second,false))/2;
+    if(id.first==id.second)return use.Estimate_wrap(dif,id.first);
+    return (use.Estimate_wrap(dif,id.first)+use.Estimate_wrap(dif,id.second))/2;
 }
 
 double SearchDifDistProb(double dif, int time) {
@@ -77,8 +80,10 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                        toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
     q.push(QueueInfo{1, 0});
     SearchRes result{-1,0,0,0, nullptr};
+    bool earlyEnd = false;
 
     while(!q.empty()){
+
         int lastNode = q.top().node;
         q.pop();
         const auto &lastInfo = seqPath[lastNode];
@@ -95,28 +100,33 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 float allLen = lastInfo.len + fromNodeDistB;
                 if(allLen >= float(span) * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
-                double outProb = DifDistProb(allLen, span) * AngleProb(angle, span); //- greatCircle
+                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span);
                 if(outProb > result.prob){
                     seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(toRoad)},
                                        lastNode, lastInfo.level+1, allLen, angle});
                     result = {outProb, allLen, angle, (int)seqPath.size()-1};
                 }
-                continue;
+                if(allLen - greatCircle >= 0){
+                    earlyEnd = true;
+                    break;
+                }
+                else continue;
             }
             float totLen = lastInfo.len + RoadLen(to);
             angle += FindAngle(to,0);
             // 检查应该入队还是被剪枝
-            // 各种剪枝：最多执行span/3步，也就是最快允许平均每3秒换一条路段
-            if(lastInfo.level > span/3)continue;
-            // span/6步后，比起点前更靠近目的地（直线）
-            if(lastInfo.level > span/6 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
+            // 各种剪枝：最多执行span/2步，也就是最快允许平均每4秒换一条路段
+            if(lastInfo.level > span/2)continue;
+            // span/4步后，比起点前更靠近目的地（直线）
+            if(lastInfo.level > span/4 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
             if(totLen >= float(span) * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
-                               lastNode, lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen, span) * AngleProb(angle, span), seqSize++}); // - greatCircle
+                               lastNode,  lastInfo.level+1, totLen, angle});
+            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), seqSize++});
         }
+        if(earlyEnd)break;
     }
     // 搜索结束
     if(result.prob * accuProb <= maxProb)return {result.prob,-1}; // Search Failed
@@ -133,10 +143,11 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
+    //if(id<29658)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
-        safe_clog(string("Can't Match point to road at road id ")+ to_string(id) +string(" due to ")+cause);
+        safe_clog(string("Can't Match point to road at path id ")+ to_string(id) +string(" due to ")+cause);
         return false;
     };
     auto beginTM = clock();
@@ -156,6 +167,7 @@ void solve(int id){
     unordered_set<unsigned long long>noPath;
 
     for(int i=1;i<traceNow.size();++i){
+
         found.clear();
         FindRoad(60, 300, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
@@ -170,7 +182,7 @@ void solve(int id){
                 double traceProb, allProb;
                 if(old.roadID == now.roadID){
                     float ground = old.toNodeDist - now.toNodeDist, angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p), int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * // - ground
+                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, int(traceNow[i].timestamp-traceNow[i-1].timestamp)) *
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
                     allProb = old.prob * now.prob * traceProb;
                     if(allProb > maxNode.prob) {
@@ -375,7 +387,6 @@ int main() {
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
-    LoadParam(PARAMTURN,PARAMLEN);
     //m=5000;
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;

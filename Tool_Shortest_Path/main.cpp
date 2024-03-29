@@ -102,7 +102,7 @@ int main(){
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
-    ReadTracesWithRoad("../../test_output.txt", m, traces);
+    ReadTracesWithRoad("RN_recovery.txt", m, traces);
 
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;

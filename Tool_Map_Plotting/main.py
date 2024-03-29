@@ -4,9 +4,9 @@ from file import *
 
 file_map = 'edgeOSM_Porto.txt'
 file_in_sampled = '../test_sampled.txt'  # matched trace file name
-file_in_pred = '../RecoveryHistory/3.18-2.txt'
+file_in_pred = '../RecoveryHistory/3.28.txt'
 file_in_true = '../test_output.txt'
-# file_out = '../test_sampled.txt'  # continuous roads file name
+file_out = '../RecoveryHistory/3.28_full.txt'  # continuous roads file name
 file_generateM = 'Porto_Matched.html'
 
 specify = False
@@ -62,21 +62,21 @@ def add_marker(filename, colorR, colorB, type):
 if len(file_in_true) > 0:
     print("STEP 2: Reading Tracks")
     add_marker(file_in_sampled, "00", "00", folium.Marker)
-    add_marker(file_in_pred, "ff", "00", folium.CircleMarker)
-    add_marker(file_in_true, "00", "ff", folium.CircleMarker)
+    add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
+    # add_marker(file_in_true, "ff", "00", folium.CircleMarker)
 
-# if len(file_out) > 0:
-#     print("STEP 3: Processing Outputs")
-#     with open(file_out, 'r') as file:
-#         answer_file = list(itertools.islice(file, 50000))
-#         result = answer_file[1:]  # 忽略答案中的轨迹条数
-#         for i in plot_indexes:
-#             road_segments = answer_roadid(result[i], roadnet, i)
-#             print(road_segments)
-#             for segment in road_segments:
-#                 line = folium.PolyLine(segment['points'], color=segment['color'], weight=5, fill_opacity=0.5)
-#                 line.add_child(folium.Popup(f"Road ID: {segment['id']}"))
-#                 line.add_to(map)
+if len(file_out) > 0:
+    print("STEP 3: Processing Outputs")
+    with open(file_out, 'r') as file:
+        answer_file = list(itertools.islice(file, 50000))
+        result = answer_file[1:]  # 忽略答案中的轨迹条数
+        for i in plot_indexes:
+            road_segments = answer_roadid(result[i], roadnet, i)
+            print(road_segments)
+            for segment in road_segments:
+                line = folium.PolyLine(segment['points'], color=segment['color'], weight=5, fill_opacity=0.5)
+                line.add_child(folium.Popup(f"Road ID: {segment['id']}"))
+                line.add_to(map)
 
 print("STEP 4: Saving")
 map.save(file_generateM)

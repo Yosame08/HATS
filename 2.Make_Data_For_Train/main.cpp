@@ -19,13 +19,23 @@ vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journeyTime", "ve
 vector<string> header;
 
 void TaskTurn(){
-    ReadStat("../../Intermediate/train_turn_cnt.txt", true);
-    FitParam(true);
-    Output(PARAMTURN,true);
-    cout<<"Turn: Finish"<<endl;
-    ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
-    FitParam(false);
-    Output(PARAMLEN,false);
+    FunctionFit turn(limTurn);
+    turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
+    turn.FitParam();
+    turn.Output(PARAMTURN);
+    cout<<"[Fit Parameters] Turn: Finish"<<endl;
+
+    FunctionFit lenPos(limLenPos);
+    lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
+    lenPos.FitParam();
+    lenPos.Output(PARAMLENPOS);
+    cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
+
+    FunctionFit lenNeg(limLenNeg);
+    lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
+    lenNeg.FitParam();
+    lenNeg.Output(PARAMLENNEG);
+    cout<<"[Fit Parameters] Length(Negative): Finish"<<endl;
 }
 
 struct Info{
@@ -96,7 +106,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-    //threads.emplace_back(TaskTurn);
+    threads.emplace_back(TaskTurn);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));

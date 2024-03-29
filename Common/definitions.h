@@ -4,19 +4,25 @@
 #define EDGEFILE "../../Map/edgeOSM.txt"
 #define TYPEFILE "../../Map/wayTypeOSM.txt"
 #define TRACEFILE "../../test_sampled.txt"
-#define PARAMTURN "../../Intermediate/ParamTurn.txt"
-#define PARAMLEN "../../Intermediate/ParamLen.txt"
 #define ROADVECTOR "../../Intermediate/road_vectors.txt"
 #define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
 #define PATH_NUM 65536
 #define TIMEZONE 0
-#define SIGZ 4.07    // Related to the confidence of the GPS location point. The more reliable the location point is, the smaller σ_z should be.
+#define SIGZ 4.07 // Related to the confidence of the GPS location point. The more reliable the location point is, the smaller σ_z should be.
 #define BETA 2 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
 #define vec_len 12
-#define granular_turn 1 // for calculating the probability of turning
-#define granular_len 1 // for calculating the probability of turning
+
+// Macros for [FuncEst.h/cpp] to fit parameters
+#define limTurn 5000 // for calculating the probability of turning
+#define limLenPos 6000 // for calculating the probability of total length
+#define limLenNeg 500 // for calculating the probability of total length (negative)
+#define PARAMTURN "../../Intermediate/ParamTurn.txt"
+#define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
+#define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"
+#define mxMissing 30 // maximum number of consecutive missing records in the trajectory
+
 #include <vector>
 #include <unordered_map>
 #include <string>

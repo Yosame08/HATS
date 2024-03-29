@@ -1,5 +1,4 @@
 #include "FuncEst.h"
-#include "definitions.h"
 #include "structs.h"
 #include "funcIO.h"
 #include <fstream>
@@ -8,7 +7,6 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
-#include <vector>
 #include <cassert>
 using namespace std;
 
@@ -17,20 +15,8 @@ using namespace std;
  * We use 2 normal distribution to implement this function
  */
 
-vector<int> times;
-const int mxTurn = 5000 / granular_turn + 1, mxLen = 5000 / granular_len + 1;
-const int mxMissing = 30;
-vector<double> freqTurn[mxMissing + 1], freqLen[mxMissing + 1];
-enum pName{
-    sig1,S1,sig2,mu2,Size//,S2,sig3,mu3,Size
-};
-double bestTurn[mxMissing + 1][Size], cacheTurn[mxMissing + 1][Size], lossTurn[mxMissing + 1];
-double bestLen[mxMissing + 1][Size], cacheLen[mxMissing + 1][Size], lossLen[mxMissing + 1];
 const double sqrt_2_PI = sqrt(M_PI*2);
-
-void ReadStat(const string &filename, bool turn){
-    times.clear();
-    auto &op = turn?freqTurn:freqLen;
+void FunctionFit::ReadStat(const string &filename, bool rev){
     std::ifstream file(filename);
     std::string line;
     int tot=0, timeNow;
@@ -41,28 +27,23 @@ void ReadStat(const string &filename, bool turn){
         if (line.find("Secs:") != std::string::npos) {
             iss >> timeNow;
             times.emplace_back(timeNow);
-            op[tot].reserve(turn?mxTurn:mxLen);
-        } else {
+            stat[tot].reserve(upLim+1);
+        }
+        else {
             float num;
             int cnt=0;
             while (iss >> num) {
+                if(rev)num=-num;
                 if(num>maxNum)maxNum=num;
-                if(turn){
-                    if(num / granular_turn >= mxTurn)continue;
-                    ++op[tot][int(num / granular_turn)];
-                    ++cnt;
-                }
-                else if(num>=0){
-                    if(num / granular_len >= mxLen)continue;
-                    ++op[tot][int(num / granular_len)];
-                    ++cnt;
-                }
+                if(num>=upLim || num<0)continue;
+                ++stat[tot][int(num)];
+                ++cnt;
             }
-            for(int i=0; i < (turn?mxTurn:mxLen); ++i)op[tot][i]/= cnt;
+            for(int i=0; i<upLim; ++i)stat[tot][i]/= cnt;
             ++tot;
         }
     }
-    cout<<"Information Read Finish, max = "<<maxNum<<endl;
+    cout<<"[FunctionFit] Statistical data reading completed, max = "<<maxNum<<endl;
 }
 
 // code from: https://www.johndcook.com/blog/cpp_phi/
@@ -93,177 +74,119 @@ double CalcArea(long double _mu, long double _sigma){
     return 1 - (double)phi(0-_mu/_sigma);
 }
 
-double Estimate(double x, const double param[], const double cache[]){
+double FunctionFit::Estimate(double x, const double param[], const double cache[]) {
     const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]);//, x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
     return cache[S1] * exp(-x2 / cache[sig1])
          + cache[mu2] * exp(-x_mu_2 / cache[sig2]);
 }
 
-double EstimateSP(double x, const double param[], const double cache[]){
-    const double x2 = x*x, a2 = param[sig1] * param[sig1];
-    return cache[S1] * exp(-x2 / (a2 * 2));
-}
-
-void EstiUpdate(int id, const double param[], const double cache[], bool turn){
-    auto &lossArr = turn?lossTurn[id]:lossLen[id];
-    auto &bestArr = turn?bestTurn[id]:bestLen[id];
-    const auto &freqArr = turn?freqTurn[id]:freqLen[id];
-    double loss=0;
-    for(int i=0; i < (turn?mxTurn:mxLen); ++i){
-        double est = Estimate(i, param, cache);
+void FunctionFit::EstiUpdate(int id, const double param[]){
+    double l=0;
+    for(int i=0; i<upLim; ++i){
+        double est = Estimate(i, param, cache[id]);
         assert(est==est); // nan inf
-        loss += abs(est - freqArr[i]);
-        //sum += est;
+        l += abs(est - stat[id][i]);
     }
-    if(loss < lossArr){
-        lossArr=loss;
-        for(int i=0;i<Size;++i)bestArr[i]=param[i];
-    }
-}
-
-const int width = 8;
-void FindOneParam(pName name, double areaLeft, int id, double param[], const double step[], double origin[], bool turn){
-    auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
-    double from = origin[name] - step[name] * width, to = origin[name] + step[name] * width;
-    int cnt = 1;
-    for(param[name]=from; param[name] <= to; param[name]+=step[name], ++cnt){
-        if(param[name] <= EPS)continue;
-        double use = 0;
-        switch (name) {
-            case mu2:
-                cacheArr[mu2] = areaLeft / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-                EstiUpdate(id, param, cacheArr, turn);
-                continue;
-            case S1:
-                use = param[S1];
-                cacheArr[S1] = use / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
-                if(use>=areaLeft)return;
-                break;
-            case sig1:
-            case sig2:
-                cacheArr[name] = param[name] * param[name] * 2;
-            default:
-                break;
-        }
-        FindOneParam(static_cast<pName>(name + 1), areaLeft-use, id, param, step, origin, turn);
+    if(l < loss[id]){
+        loss[id] = l;
+        for(int i=0;i<Size;++i)params[id][i] = param[i];
     }
 }
 
-void FindRoughParam(int id, double param[], bool turn){
-    auto &cacheArr = turn?cacheTurn[id]:cacheLen[id];
-    for(double v1 = 20;v1 <= 600;v1 += 20) {
+const int width = 9;
+void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
+    auto &cacheArr = cache[id];
+    for(double v1=ori[0]-step[0]*width; v1<=ori[0]+step[0]*width; v1+=step[0]) {
+        if(v1<=1e-10)continue;
         param[sig1] = v1;
         cacheArr[sig1] = param[sig1] * param[sig1] * 2;
-        for (double v2 = 0.1; v2 < 1; v2 += 0.1) {
+        for(double v2=ori[1]-step[1]*width; v2<=ori[1]+step[1]*width; v2+=step[1]) {
+            if(v2<=1e-10)continue;
             param[S1] = v2;
             cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
-            for (double v3 = 20; v3 <= 600; v3 += 20) {
+            for (double v3=ori[2]-step[2]*width; v3<=ori[2]+step[2]*width; v3+=step[2]) {
+                if(v3<=1e-10)continue;
                 param[sig2] = v3;
                 cacheArr[sig2] = param[sig2] * param[sig2] * 2;
-                for (double v4 = 20; v4 <= 600; v4 += 20) {
+                for (double v4=ori[3]-step[3]*width; v4<=ori[3]+step[3]*width; v4+=step[3]) {
+                    if(v4<=1e-10)continue;
                     param[mu2] = v4;
                     cacheArr[mu2] = (1 - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-                    EstiUpdate(id, param, cacheArr, turn);
+                    EstiUpdate(id, param);
                 }
             }
         }
     }
 }
 
-void FindParam(int id, bool turn){
-    auto &bestArr = turn?bestTurn[id]:bestLen[id];
-    auto &lostVal = turn?lossTurn[id]:lossLen[id];
-    double origin_param[Size], param[Size];
+void FunctionFit::FindParam(int id){
+    double origin_param[Size] = {30, 0.5, 300, upLim/20.0};
+    double tmp_param[Size]    = {30, 0.5, 300, upLim/20.0};
     auto updateParam = [&](){
-        for(int i=0;i<Size;++i)param[i] = origin_param[i] = bestArr[i];
+        for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
     };
     updateParam();
-    safe_cout(to_string(id)+" Finding rough parameters...");
-    lostVal = 1e300;
-    FindRoughParam(id,param,turn);
-    updateParam();
-    double step[] = {5, 0.05,5, 5};
-    safe_cout(to_string(id)+" Finding precise parameters...");
-    for(int i=1;i<=20;++i){
-        lostVal = 1e300;
-        FindOneParam(static_cast<pName>(0), 1, id, param, step, origin_param, turn);
-        updateParam();
+    double step[] = {3, 0.05,30, upLim/20.0/width};
+    safe_cout(to_string(id)+" Finding parameters... 0%");
+    for(int i=1;i<=25;++i){
+        if(i==13)safe_cout(to_string(id)+" Finding parameters... 50%");
+        FindPreciseParam(id, tmp_param, step, origin_param);
         for(int j=0;j<Size;++j){
-            if(param[j] <= origin_param[j] - step[j] * (width-1) || param[j] >= origin_param[j] + step[j] * (width-1))continue;
+            if(params[id][j] <= origin_param[j]-step[j]*(width-2) || params[id][j] >= origin_param[j]+step[j]*(width-2))continue;
             step[j] /= 3;
         }
+        updateParam();
     }
     stringstream str;
-    str << id << ": Min loss = " << (turn?lossTurn[id]:lossLen[id]);
+    str << id << ": Min loss = " << loss[id];
     safe_cout(str.str());
 }
 
-void FitParam(bool turn){
+void FunctionFit::FitParam(){
     ThreadPool pool(15);
     for(int i=0;i<times.size();++i){
-        pool.enqueue([i, turn](){ FindParam(i, turn); }); // 将任务添加到线程池
+        loss[i] = 1e308;
+        pool.enqueue([i, this](){ FindParam(i); }); // 将任务添加到线程池
     }
 }
 
-void Output(const string &outFN, bool turn){
-    ofstream out(outFN);
+void FunctionFit::Output(const string &filename){
+    ofstream out(filename);
     out<<fixed<<setprecision(10);
     for(int i=0;i<times.size();++i){
         out<<times[i]<<" Secs:\n";
-        for(auto j:(turn?bestTurn[i]:bestLen[i]))out << j << ' ';
+        for(auto j:params[i])out << j << ' ';
         out<<'\n';
     }
     out.close();
 }
 
-vector<int> LoadParam(const string& turnFN, const string& lenFN){
-    std::ifstream fileTurn(turnFN);
+void FunctionFit::LoadParam(const std::string& filename){
+    std::ifstream file(filename);
     std::string line;
     int time,tot=0;
-    while (std::getline(fileTurn, line)) {
+    while (std::getline(file, line)) {
         std::istringstream iss(line);
         if (line.find("Secs:") != std::string::npos) {
             iss >> time;
             times.push_back(time);
         } else {
             int cnt=0;
-            while(iss >> bestTurn[tot][cnt++]);
+            while(iss >> params[tot][cnt++]);
             ++tot;
         }
     }
-    fileTurn.close();
-    std::ifstream fileLen(lenFN);
-    tot=0;
-    while (std::getline(fileLen, line)) {
-        std::istringstream iss(line);
-        if (line.find("Secs:") != std::string::npos)iss >> time;
-        else {
-            int cnt=0;
-            while(iss >> bestLen[tot][cnt++]);
-            ++tot;
-        }
-    }
-
+    file.close();
     for(int i=0;i<times.size();++i){
-        cacheTurn[i][S1] = bestTurn[i][S1] / CalcArea(0, bestTurn[i][sig1]) / (sqrt_2_PI * bestTurn[i][sig1]);
-        cacheTurn[i][mu2] = (1 - bestTurn[i][S1]) / CalcArea(bestTurn[i][mu2], bestTurn[i][sig2]) / (sqrt_2_PI * bestTurn[i][sig2]);
-        cacheTurn[i][sig1] = bestTurn[i][sig1] * bestTurn[i][sig1] * 2;
-        cacheTurn[i][sig2] = bestTurn[i][sig2] * bestTurn[i][sig2] * 2;
-        cacheLen[i][S1] = bestLen[i][S1] / CalcArea(0, bestLen[i][sig1]) / (sqrt_2_PI * bestLen[i][sig1]);
-        cacheLen[i][mu2] = (1 - bestLen[i][S1]) / CalcArea(bestLen[i][mu2], bestLen[i][sig2]) / (sqrt_2_PI * bestLen[i][sig2]);
-        cacheLen[i][sig1] = bestLen[i][sig1] * bestLen[i][sig1] * 2;
-        cacheLen[i][sig2] = bestLen[i][sig2] * bestLen[i][sig2] * 2;
+        cache[i][S1] = params[i][S1] / CalcArea(0, params[i][sig1]) / (sqrt_2_PI * params[i][sig1]);
+        cache[i][mu2] = (1 - params[i][S1]) / CalcArea(params[i][mu2], params[i][sig2]) / (sqrt_2_PI * params[i][sig2]);
+        cache[i][sig1] = params[i][sig1] * params[i][sig1] * 2;
+        cache[i][sig2] = params[i][sig2] * params[i][sig2] * 2;
     }
     clog<<"Params for predicting turning prob loaded. All estimated values below should be in range (0,1):"<<endl;
-    clog<<Estimate_wrap(0,16,true)<<' '<<Estimate_wrap(200,16,true)<<' '<<Estimate_wrap(600,16,true)
-        <<' '<<Estimate_wrap(0,16,false)<<' '<<Estimate_wrap(200,16,false)<<' '<<Estimate_wrap(600,16,false)
-        <<' '<<Estimate_wrap(-10,8,false)<<endl;
-    return times;
-    //exit(0);
+    clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(300,12)<<' '<<Estimate_wrap(2000,16)<<endl;
 }
 
-double Estimate_wrap(double val, int id, bool turn){
-    if(turn) return Estimate(val / granular_turn, bestTurn[id], cacheTurn[id]);
-    else if(val>=0)return Estimate(val / granular_len, bestLen[id], cacheLen[id]);
-    else return EstimateSP(val * 2 / granular_len, bestLen[id], cacheLen[id]);
+double FunctionFit::Estimate_wrap(double val, int id) const{
+    return Estimate(val, params[id], cache[id]);
 }

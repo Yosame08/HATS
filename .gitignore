@@ -4,6 +4,7 @@ DataGenerator/
 __pycache__/
 *.txt
 !CMakeLists.txt
+!note.txt
 *.csv
 *.pt
 *.pth

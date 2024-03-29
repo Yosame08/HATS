@@ -1,0 +1,121 @@
+test8:采用RNTrajRec的issue里面提供的数据集
+
+针对低频轨迹的HMM改进方法：
+1、对于两个距离较远的点，（如果能走的话）应该倾向于走大路前往（就像导航规划路线一样），所以如果从高等级的路前往低等级的路，概率乘以一个小于1的数
+2、在真实的道路上很少会转锐角弯，所以在每次转弯的时候乘以一个“转弯概率”，且角度大于90度时这个概率会大幅下降
+3、优化：原始的HMM论文是搜索路径，根据路径的长度与两点直线距离的差值求概率。这样做搜索树会很大，于是改进的方法如下：在搜索两点间的路径时，根据上述两条以及路径长度求出概率值，就可以使用类似Dijkstra的DP方程，用O(nlogn)的复杂度进行搜索，大幅减少搜索时间
+
+
+搜索到路径后，轨迹复原中给GPS定位点插值的方法：
+1、首先使用该城市的数十万条高频率定位轨迹进行训练。通过对高频率定位进行HMM地图匹配，得到数千万条该城市的交通数据：在t时间有一辆车希望从路X转向路Y，当前距离路口d米，将在a秒后转弯
+2、分析上面收集的数据：针对某个路口(1)一天86400秒内哪些秒车辆在等红灯，哪些秒车辆通过了路口 (2)有多少条数据在这个路口是等了红灯的，有多少条是直接通行，求出“绿灯率”
+3、对于上面的每条数据，都添加一个特征“当前路口是绿灯的概率”。给出道路ID和时间戳，通过以下方法计算这个值：
+a.求出这是一天的第几秒（设为t），查询[t-5,t+5]范围内有多少条记录是等红灯，有多少条记录是直接通过了这个路口，把两者相减的值求个Sigmoid函数
+b.如果a.方法中[t-5,t+5]几乎没有车经过该路口，直接用上面(2)求出的路口的“绿灯率”作为“当前路口是绿灯的概率”
+4、另外，用NLP中的Word2Vec方法，把每条道路嵌入成一个向量，并且再把一条路的长度、路口的度数、路的等级等等作为一些其它特征，送入DNN进行训练，期望模型通过道路向量、小时数（不同小时车流量可能不同）、到路口的距离、当前路口是绿灯的概率，求出当前车辆的速度
+5、在针对低频轨迹的HMM改进方法的基础上搜索出路径，然后通过该模型求出每一秒钟车辆的速度，就能进行轨迹复原了
+
+
+
+3.17 old(full)
+Average Recall: 0.8015
+Average Precision: 0.6955
+Average F1 Score: 0.7432
+Average Accuracy: 0.5185
+Average MAE: 58.9284
+Average RMSE: 83.1994
+Average RoadNet MAE: 75.0160
+Average RoadNet RMSE: 123.7257
+
+3.18 (full)
+Average Recall: 0.8010
+Average Precision: 0.6962
+Average F1 Score: 0.7434
+Average Accuracy: 0.5210
+Average MAE: 58.6000
+Average RMSE: 82.8263
+Average RoadNet MAE: 74.6976
+Average RoadNet RMSE: 123.4270
+
+3.18-3 (train data Interpolation, 5000)
+Average Recall: 0.7760
+Average Precision: 0.7150
+Average F1 Score: 0.7424
+Average Accuracy: 0.5287
+Average MAE: 61.2512
+Average RMSE: 89.3073
+Average RoadNet MAE: 78.2580
+Average RoadNet RMSE: 130.8686
+
+3.18-4 (train data Interpolation & discard journey time)
+Average Recall: 0.7795
+Average Precision: 0.7174
+Average F1 Score: 0.7455
+Average Accuracy: 0.5304
+Average MAE: 60.1725
+Average RMSE: 86.6078
+
+3.19-2(toNodeDist/1000 & road heat * 100, full)
+Average Recall: 0.7764
+Average Precision: 0.7304
+Average F1 Score: 0.7510
+Average Accuracy: 0.5410
+Average MAE: 59.4554
+Average RMSE: 85.7106
+Average RoadNet MAE: 76.1377
+Average RoadNet RMSE: 127.0642
+Average RoadNet MAE: 77.0952
+Average RoadNet RMSE: 128.2304
+
+3.20 - Preprocess only 30m:
+Average Recall: 0.7789
+Average Precision: 0.7277
+Average F1 Score: 0.7508
+Average Accuracy: 0.5374
+Average MAE: 59.4384
+Average RMSE: 84.9756
+Average RoadNet MAE: 76.2312
+Average RoadNet RMSE: 127.0177
+
+3.22 - Preprocess 50m, traffic *1.2 full
+Average Recall: 0.7766
+Average Precision: 0.7293
+Average F1 Score: 0.7505
+Average Accuracy: 0.5403
+Average MAE: 59.4288
+Average RMSE: 85.6628
+Average RoadNet MAE: 76.1747
+Average RoadNet RMSE: 127.2465
+
+3.22 - Preprocess 50m, traffic *1.5 full
+Average Recall: 0.7774
+Average Precision: 0.7297
+Average F1 Score: 0.7512
+Average Accuracy: 0.5407
+Average MAE: 58.9771
+Average RMSE: 84.5673
+Average RoadNet MAE: 75.6777
+Average RoadNet RMSE: 126.1584
+
+RNTrajRec:
+Road length Recall = 0.9537
+Road length Precision = 0.9073
+Road length F1 Score = 0.9273
+Accuracy = 0.5187
+Straight MAE = 83.0986
+Straight RMSE = 114.8307
+Road Net MAE = 99.2980
+Road Net RMSE = 147.8905
+
+3.28
+Road length Recall = 0.9388
+Road length Precision = 0.9459
+Road length F1 Score = 0.9418
+Accuracy = 0.5410
+Straight MAE = 59.9623
+Straight RMSE = 87.1500
+Road Net MAE = 76.3860
+Road Net RMSE = 127.4516
+
+3.29
+

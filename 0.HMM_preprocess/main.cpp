@@ -2,7 +2,7 @@
 #undef TRACEFILE
 
 #include <string>
-const std::string mode = "valid";
+const std::string mode = "train";
 #define TRACEFILE ("../../"+mode+"_input.txt")
 
 #include "structs.h"
