@@ -27,6 +27,7 @@ ostringstream fullStream[524288], crossStream[524288];
 GridType inGrid;
 vector<float>turnAngles[256][25];
 vector<float>difDists[256][25];
+vector<float>anchorError[256];
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -185,7 +186,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 if(!recent24[i])break;
                 int &old=recent24[i];
                 totLen += length[old];
-                float dif = totLen - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
+                float dif = totLen;// - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
                 totAngle += angles[old];
                 difSingle[i].push_back(dif);
                 turnStash[i].push_back(totAngle);
@@ -194,6 +195,8 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             vels.push_back(recent24[1]);
         }
 
+        float dist = traceNow[node.pointID].p.dist(FindLatLon(node.roadID, node.toNodeDist));
+        anchorError[thread].push_back(dist);
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         for(int i=(int)node.path->size()-1;i>=0;--i){
             if(!myAssert((*node.path)[i].timestamp>0,"(Bug) Exists a path with negative timestamp at trace"+to_string(id)))return;
@@ -319,6 +322,12 @@ int main() {
         difDistCount<<j*15<<" Secs:\n";
         for(int i=0;i<num_threads;++i)for(auto x:difDists[i][j])difDistCount<<x<<' ';
         difDistCount<<'\n';
+    }
+
+    if(mode == "train"){
+        ofstream anchor("../../Intermediate/anchorError.txt");
+        anchor<<fixed<<setprecision(2);
+        for(int i=0;i<num_threads;++i)for(auto x:anchorError[i])anchor<<x<<' ';
     }
     return 0;
 }

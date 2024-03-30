@@ -4,7 +4,7 @@ from math import exp, sqrt
 
 granularity = 1
 statBegin = 0
-statEnd = 8000
+statEnd = 5000
 
 
 def phi(x):
@@ -46,7 +46,7 @@ def func(x):
 plt.figure()
 # 你的数据
 data = []
-with open("ParamLenPos.txt", "r") as f:
+with open("ParamTurn.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')
@@ -68,7 +68,7 @@ with open("ParamLenPos.txt", "r") as f:
         plt.plot(x, y, marker='x', color=(time/360, 0, 0), linewidth=1, markersize=0)
 
 data2 = {}
-with open("train_difDist_cnt.txt", "r") as f:
+with open("train_turn_cnt.txt", "r") as f:
     inter = 0
     for line in f:
         info = line.split(' ')[:-1]
@@ -78,7 +78,7 @@ with open("train_difDist_cnt.txt", "r") as f:
             continue
         for i in range(len(info)):
             val = float(info[i]) / granularity
-            if val >= 0 and val < statEnd:
+            if val >= 0:
                 data2[inter][int(val)] += 1
 for key in data2:
     if key % 30 == 0: # show half

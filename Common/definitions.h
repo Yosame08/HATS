@@ -15,9 +15,9 @@
 #define vec_len 12
 
 // Macros for [FuncEst.h/cpp] to fit parameters
-#define limTurn 5000 // for calculating the probability of turning
-#define limLenPos 6000 // for calculating the probability of total length
-#define limLenNeg 500 // for calculating the probability of total length (negative)
+#define limTurn 3500 // for calculating the probability of turning
+#define limLenPos 7000 // for calculating the probability of total length
+#define limLenNeg 300 // for calculating the probability of total length (negative)
 #define PARAMTURN "../../Intermediate/ParamTurn.txt"
 #define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"

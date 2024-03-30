@@ -47,6 +47,8 @@ model = nn.Sequential(
 
 print("Start training...")
 valid_losses = []
+best_loss = float('inf')  # 初始化最小损失为无穷大
+best_model = None  # 初始化最佳模型
 # 训练模型
 for times in range(5):
     # 定义损失函数和优化器
@@ -83,19 +85,24 @@ for times in range(5):
         print(
             f'Epoch {epoch + 1} ({time.time() - startTM:.2f}s), Train Loss: {train_loss:.4f}, Valid Loss: {loss_valid.item():.4f}')
         valid_losses.append(loss_valid.item())
-        # 检查最近5个epoch的最低验证损失和最近6到10个epoch的最低验证损失
+        # 如果当前验证损失比最小损失还小，更新最小损失并保存模型
+        if loss_valid.item() < best_loss:
+            best_loss = loss_valid.item()
+            best_model = model.state_dict()  # 保存当前最佳模型
+        # 检查最近3个epoch的最低验证损失和最近4到6个epoch的最低验证损失
         if epoch >= 6:
-            last_5_min_loss = min(valid_losses[-3:])
-            last_6_to_10_min_loss = min(valid_losses[-6:-3])
-            if last_5_min_loss >= 0.99 * last_6_to_10_min_loss:
+            last_3_min_loss = min(valid_losses[-3:])
+            last_4_to_6_min_loss = min(valid_losses[-6:-3])
+            if last_3_min_loss >= 0.99 * last_4_to_6_min_loss:
                 print(f"Early stop {times}")
                 break
 
 model = model.to(torch.device("cpu"))  # 保存为CPU上的模型，HMM中使用CPU跑小数据
 # 保存模型
-torch.save(model.state_dict(), '../Intermediate/model_vel.pth')
+torch.save(best_model, '../Intermediate/model_vel.pth')
 
 # 保存模型
+model.load_state_dict(best_model)
 example_input = torch.rand(1, X_train.shape[1])  # 这是一个输入示例
 traced_script_module = torch.jit.trace(model, example_input)
 

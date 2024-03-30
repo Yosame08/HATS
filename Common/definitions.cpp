@@ -3,15 +3,23 @@
 #include "maths.h"
 #include <cmath>
 #include <iostream>
+#include <fstream>
 #include <queue>
 using namespace std;
 
 extern Road roads[];
 extern GridType inGrid;
 
+double readSigZ(){
+    ifstream in("../../Intermediate/SIGZ.txt");
+    double i;
+    in>>i;
+    return i;
+}
+double loadSigZ = readSigZ();
 double PtMatchProb(double dist){
-    static const double coefficient = 1 / (SIGZ * sqrt(M_2_PI));
-    double param = dist / SIGZ;
+    static const double coefficient = 1 / (loadSigZ * sqrt(M_PI * 2));
+    double param = dist / loadSigZ;
     return exp(-(param * param * 0.5)) * coefficient;
 }
 
@@ -37,7 +45,7 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
         double high=f.second.top().first;
         while(!f.second.empty()){
             auto &t=f.second.top();
-            if(t.first/high>=EPS)found.push_back({f.first, t.second, t.first});
+            if(t.first/high>=0.01)found.push_back({f.first, t.second, t.first});
             else break;
             f.second.pop();
         }

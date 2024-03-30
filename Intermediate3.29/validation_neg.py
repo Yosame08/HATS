@@ -4,7 +4,7 @@ from math import exp, sqrt
 
 granularity = 1
 statBegin = 0
-statEnd = 8000
+statEnd = 200
 
 
 def phi(x):
@@ -46,7 +46,7 @@ def func(x):
 plt.figure()
 # 你的数据
 data = []
-with open("ParamLenPos.txt", "r") as f:
+with open("ParamLenNeg.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')
@@ -61,7 +61,7 @@ with open("ParamLenPos.txt", "r") as f:
         x = []
         y = []
         i = 0
-        while i <= 4000:
+        while i <= statEnd:
             x.append(i)
             i+=1
             y.append(func(i))
@@ -78,8 +78,8 @@ with open("train_difDist_cnt.txt", "r") as f:
             continue
         for i in range(len(info)):
             val = float(info[i]) / granularity
-            if val >= 0 and val < statEnd:
-                data2[inter][int(val)] += 1
+            if val <= 0:
+                data2[inter][int(-val)] += 1
 for key in data2:
     if key % 30 == 0: # show half
         continue
@@ -88,7 +88,7 @@ for key in data2:
 plt.title('p')
 plt.xlabel('Degree')
 plt.ylabel('Sum')
-plt.xlim([0, 1000])
+plt.xlim([0, statEnd])
 plt.ylim([0, 0.05])
 x = np.arange(statBegin, statEnd + granularity, granularity)
 for key in data2:

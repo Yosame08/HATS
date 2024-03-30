@@ -4,8 +4,11 @@
 #include "funcIO.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <thread>
 #include <cassert>
+#include <cmath>
+#include <algorithm>
 using namespace std;
 
 float CycleTime(long long stamp) {
@@ -14,28 +17,62 @@ float CycleTime(long long stamp) {
     return (86400 + 7200 - stamp) / 3600.0;
 }
 
+double MatchProbTest(double dist, double sig){
+    static const double sqrt2pi = sqrt(M_PI * 2);
+    double coefficient = 1 / (sig * sqrt2pi), param = dist / sig;
+    return exp(-(param * param * 0.5)) * coefficient;
+}
+
 std::vector<std::vector<double>> road_vectors(PATH_NUM);
-vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journeyTime", "vel"};
+vector<string> addHeader = {"toNode", "greenProb", "timeTo2", "journey", "vel"};
 vector<string> header;
 
-void TaskTurn(){
-    FunctionFit turn(limTurn);
-    turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
-    turn.FitParam();
-    turn.Output(PARAMTURN);
-    cout<<"[Fit Parameters] Turn: Finish"<<endl;
+void TaskParam(){
+    double errors[1000]{};
+    ifstream anchorE("../../Intermediate/anchorError.txt");
+    std::string line;
+    std::getline(anchorE, line);
+    std::istringstream iss(line);
+    std::vector<double> numbers;
+    double num, loss=1e308, best=0;
+    const double unit = 0.1, unitInv = 1/unit;
+    vector<float> ins;
+    while(iss >> num)if(num<100)ins.push_back(num);
+    sort(ins.begin(),ins.end());
+    int accept = ins.size() * 0.999;
+    for(int i=0;i<accept;++i)++errors[int(ins[i]*unitInv)];
+    for(int i=0;i<1000;++i)errors[i]/=accept;
+    for(double sig=1;sig<=20;sig+=0.1){
+        double l=0;
+        for(double i=0;i<100;i+=unit)
+            l += abs(MatchProbTest(i,sig)*unit-errors[int(i*unitInv)]);
+        if(l<loss){
+            loss=l;
+            best=sig;
+        }
+    }
+    ofstream anchorO("../../Intermediate/SIGZ.txt");
+    anchorO<<best;
+    anchorO.close();
+    cout<<"[Fit Parameters] SigZ: Finish"<<endl;
 
-    FunctionFit lenPos(limLenPos);
-    lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
-    lenPos.FitParam();
-    lenPos.Output(PARAMLENPOS);
-    cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
-
-    FunctionFit lenNeg(limLenNeg);
-    lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
-    lenNeg.FitParam();
-    lenNeg.Output(PARAMLENNEG);
-    cout<<"[Fit Parameters] Length(Negative): Finish"<<endl;
+//    FunctionFit turn(limTurn);
+//    turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
+//    turn.FitParam();
+//    turn.Output(PARAMTURN);
+//    cout<<"[Fit Parameters] Turn: Finish"<<endl;
+//
+//    FunctionFit lenPos(limLenPos);
+//    lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
+//    lenPos.FitParam();
+//    lenPos.Output(PARAMLENPOS);
+//    cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
+//
+//    FunctionFit lenNeg(limLenNeg);
+//    lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
+//    lenNeg.FitParam();
+//    lenNeg.Output(PARAMLENNEG);
+//    cout<<"[Fit Parameters] Length(Negative): Finish"<<endl;
 }
 
 struct Info{
@@ -90,15 +127,15 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
             double toNodeDist = line["distance"];
             double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
             passed += info[i-1].passed;
-            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist/1000, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist), CycleTime(timestamp),
-                                     info[i].begin/(double)lasting[info[i].trajID].first, vel);
+            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist/1000, traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist),
+                                     CycleTime(timestamp), passed/lasting[info[i].trajID].second, vel); // info[i].begin/(double)lasting[info[i].trajID].first
         }
         else passed = 0;
         dataVel.append(newLine);
         double vel = info[i].vel;
         passed += info[i].passed;
-        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode), CycleTime(info[i].timestamp),
-                                 (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first,  vel);
+        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode),
+                                 CycleTime(info[i].timestamp), passed/lasting[info[i].trajID].second,  vel); // (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first
     }
     dataVel.saveTo("../../Intermediate/data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
@@ -106,7 +143,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-    threads.emplace_back(TaskTurn);
+    threads.emplace_back(TaskParam);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
@@ -127,8 +164,8 @@ int main(){
         file.close();
     }
     TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
-    threads.emplace_back(TaskData, "train", traffics);
-    threads.emplace_back(TaskData, "valid", traffics);
+//    threads.emplace_back(TaskData, "train", traffics);
+//    threads.emplace_back(TaskData, "valid", traffics);
 
     for(auto &i:threads)i.join();
     return 0;

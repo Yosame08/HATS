@@ -15,7 +15,7 @@ public:
     // This construction function is to fit parameters
     explicit FunctionFit(int limit): upLim(limit){}
     // This construction function is to load parameters
-    explicit FunctionFit(const std::string &filename){
+    explicit FunctionFit(int limit, const std::string &filename): upLim(limit){
         LoadParam(filename);
     }
     // Set rev to true to read negative values
@@ -28,7 +28,7 @@ public:
 private:
     int upLim{};
     std::vector<double> stat[mxMissing + 1];
-    double params[mxMissing + 1][Size]{}, cache[mxMissing + 1][Size]{}, loss[mxMissing + 1]{};
+    double params[mxMissing + 1][Size]{}, cache[mxMissing + 1][Size]{}, loss[mxMissing + 1]{}, prep[mxMissing + 1][10000];
 
     void FindParam(int id);
     void FindPreciseParam(int id, double param[], const double step[], const double ori[]);

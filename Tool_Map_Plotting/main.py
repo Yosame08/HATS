@@ -4,9 +4,9 @@ from file import *
 
 file_map = 'edgeOSM_Porto.txt'
 file_in_sampled = '../test_sampled.txt'  # matched trace file name
-file_in_pred = '../RecoveryHistory/3.28.txt'
+file_in_pred = '../RecoveryHistory/3.30-2.txt'
 file_in_true = '../test_output.txt'
-file_out = '../RecoveryHistory/3.28_full.txt'  # continuous roads file name
+file_out = '../RecoveryHistory/3.30-2Full.txt'  # continuous roads file name
 file_generateM = 'Porto_Matched.html'
 
 specify = False
@@ -63,7 +63,7 @@ if len(file_in_true) > 0:
     print("STEP 2: Reading Tracks")
     add_marker(file_in_sampled, "00", "00", folium.Marker)
     add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
-    # add_marker(file_in_true, "ff", "00", folium.CircleMarker)
+    add_marker(file_in_true, "ff", "00", folium.CircleMarker)
 
 if len(file_out) > 0:
     print("STEP 3: Processing Outputs")

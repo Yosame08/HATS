@@ -19,7 +19,7 @@ float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp,
     inputs.push_back(toNodeDist/1000);
     inputs.push_back(traffics.query(roadID, toID, timestamp%86400, toNodeDist));
     inputs.push_back(CycleTime(timestamp%86400));
-    inputs.push_back(percent>1?1:percent);
+    inputs.push_back(percent);
     //inputs.push_back(distLeft);
     torch::Tensor input = torch::from_blob(inputs.data(), {1, static_cast<int64_t>(inputs.size())}, torch::kFloat);
     torch::Tensor output = moduleVel.forward({input}).toTensor();
