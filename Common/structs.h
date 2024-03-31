@@ -148,7 +148,7 @@ struct QueueInfo2{
     float len, angle;
 };
 
-struct QInfo{
+struct QInfo{ // For A-star
     int level, node;
     float len, toDstLen, angle;
     bool operator <(const QInfo &b) const{return len+toDstLen > b.len+b.toDstLen;}

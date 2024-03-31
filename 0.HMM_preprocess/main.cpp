@@ -27,7 +27,8 @@ ostringstream fullStream[524288], crossStream[524288];
 GridType inGrid;
 vector<float>turnAngles[256][25];
 vector<float>difDists[256][25];
-vector<float>anchorError[256];
+//vector<pair<float,float>>dtAll[256][25];
+//vector<float>anchorError[256];
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -36,7 +37,7 @@ double DifDistProb(double dif) {
 SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNodeDistB, const Trace &lastTr, const Trace &nowTr){
     vector<pair<PathNode,int>>seqPath;
     // A-star Algorithm
-    bool vis[PATH_NUM+1]{};
+    BitInt vis;
     priority_queue<QInfo>q;
     const float greatCircle = lastTr.p.dist(nowTr.p);
     const unsigned long long span = nowTr.timestamp - lastTr.timestamp;
@@ -50,14 +51,13 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
     while(!q.empty()&&!fin){
         const auto top=q.top();q.pop();
-        const auto lastPath = seqPath[top.node].first;
-        if(vis[lastPath.roadID])continue;
-        vis[lastPath.roadID]=true;
+        const auto &lastPath = seqPath[top.node].first;
+        if(vis.chk(lastPath.roadID))continue;
+        vis.set(lastPath.roadID);
         int node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
-            if(vis[to])continue;
-            float angle = top.angle;
-            angle += GetTurnAngle(seqPath[top.node].first.roadID, to);
+            if(vis.chk(to))continue;
+            float angle = top.angle + GetTurnAngle(seqPath[top.node].first.roadID, to);
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
                 if(allLen>=span*40)continue;
@@ -83,7 +83,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     }
     double sumLen = toNodeDistA;
     for(int i=0;i<result.path->size();++i){
-        //TODO: (Linear) Only when creating cases for training
         (*result.path)[i].timestamp = lastTr.timestamp + ((result.length==0)?span:(long long)(span*sumLen/result.length));
         sumLen+=(*result.path)[i].toNodeDist;
     }
@@ -104,26 +103,26 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
     vector<SearchNode>search;
-    vector<float>length, angles;
+    vector<float>angles;
     int matched[traceNow.size()];
-    FindRoad(40, 40, traceNow[0].p, found);
+    FindRoad(50, 50, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
         search.push_back({x.prob,x.toNodeDist,0,x.roadID,-1,0,new Path{{x.roadID,traceNow[0].timestamp,x.toNodeDist}}});
-        length.push_back(0), angles.push_back(0);
+        angles.push_back(0);
     }
     int oldBegin=0, oldEnd=(int)search.size()-1;
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(40, 40, traceNow[i].p, found);
+        FindRoad(50, 50, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
         for(auto &now:found){
             SearchNode maxNode{0};
-            float maxNodeLen, maxAngle;
+            float maxAngle;
             for(int l=oldBegin;l<=oldEnd;++l) {
                 SearchNode &old = search[l];
                 Path *path;
@@ -149,13 +148,13 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 if (allProb > maxNode.prob){
                     delete maxNode.path;
                     maxNode = {allProb, now.toNodeDist, ground, now.roadID, l, i, path};
-                    maxNodeLen = ground, maxAngle = angle;
+                    maxAngle = angle;
                 }
                 else delete path;
             }
             if(maxNode.prob>0){
                 if(maxNode.prob>maxProb)maxProb=maxNode.prob;
-                search.push_back(maxNode), length.push_back(maxNodeLen), angles.push_back(maxAngle);
+                search.push_back(maxNode), angles.push_back(maxAngle);
             }
         }
         // Map imperfections can lead to HMM breaks, and in the preprocessing stage we filter out trajectories that cannot be matched directly
@@ -174,7 +173,8 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     Path fullPath;
     int recent24[25]{};
 
-    vector<float>difSingle[25], turnStash[25], vels;
+    vector<float>difSingle[25], turnStash[25];
+//    vector<pair<float,float>>dt[25];
     while(true){
         const auto &node=search[outID];
         // 1. Stat: distance difference and angle turned
@@ -182,21 +182,22 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             float totLen=0, totAngle=0;
             // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
             recent24[0]=outID;
-            for(int i=1;i<=24;++i){
+            for(int i=4;i<=24;++i){
                 if(!recent24[i])break;
                 int &old=recent24[i];
-                totLen += length[old];
+                totLen += search[old].length;
                 float dif = totLen;// - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
                 totAngle += angles[old];
                 difSingle[i].push_back(dif);
                 turnStash[i].push_back(totAngle);
+//                dt[i].emplace_back(dif,totAngle);
             }
             for(int i=24;i>=1;--i)recent24[i]=recent24[i-1];
-            vels.push_back(recent24[1]);
+            //vels.push_back(recent24[1]);
         }
 
         float dist = traceNow[node.pointID].p.dist(FindLatLon(node.roadID, node.toNodeDist));
-        anchorError[thread].push_back(dist);
+        //anchorError[thread].push_back(dist);
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         for(int i=(int)node.path->size()-1;i>=0;--i){
             if(!myAssert((*node.path)[i].timestamp>0,"(Bug) Exists a path with negative timestamp at trace"+to_string(id)))return;
@@ -243,7 +244,8 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         //                  << now.toNodeDist << ',' << fullPath[nextOut].timestamp - now.timestamp << '\n';
     }
     fullMatch << '\n';
-    for(int i=2;i<=24;++i){
+    for(int i=4;i<=24;++i){
+//        dtAll[thread][i].insert(dtAll[thread][i].end(),dt[i].begin(),dt[i].end());
         difDists[thread][i].insert(difDists[thread][i].end(),difSingle[i].begin(),difSingle[i].end());
         turnAngles[thread][i].insert(turnAngles[thread][i].end(),turnStash[i].begin(),turnStash[i].end());
     }
@@ -315,8 +317,9 @@ int main() {
     ofstream turnCount("../../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../../Intermediate/"+mode+"_difDist_cnt.txt");
     turnCount<<fixed<<setprecision(1);
     difDistCount<<fixed<<setprecision(1);
-    for(int j=2;j<=24;++j){
+    for(int j=4;j<=24;++j){
         turnCount<<j*15<<" Secs:\n";
+//        for(int i=0;i<num_threads;++i)for(auto x:dtAll[i][j])turnCount<<x.first<<' '<<(x.second*180/M_PI)<<' ';
         for(int i=0;i<num_threads;++i)for(auto x:turnAngles[i][j])turnCount<<(x*180/M_PI)<<' ';
         turnCount<<'\n';
         difDistCount<<j*15<<" Secs:\n";
@@ -324,10 +327,10 @@ int main() {
         difDistCount<<'\n';
     }
 
-    if(mode == "train"){
-        ofstream anchor("../../Intermediate/anchorError.txt");
-        anchor<<fixed<<setprecision(2);
-        for(int i=0;i<num_threads;++i)for(auto x:anchorError[i])anchor<<x<<' ';
-    }
+//    if(mode == "train"){
+//        ofstream anchor("../../Intermediate/anchorError.txt");
+//        anchor<<fixed<<setprecision(3);
+//        for(int i=0;i<num_threads;++i)for(auto x:anchorError[i])anchor<<x<<' ';
+//    }
     return 0;
 }

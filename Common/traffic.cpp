@@ -59,9 +59,9 @@ void TrafficHandler::init(const char* filename) {
             if(fromID!=last.from){
                 stopped=false;
                 addInterval(last.from,last.to,last.stamp+last.elapsed-2,last.stamp+last.elapsed+2,2);
-//                double vel=last.dist/last.elapsed;
-//                if(vel<1&&last.elapsed>5)
-//                    addInterval(last.from,last.to,last.stamp-last.dist/5*1.5,last.stamp+last.elapsed/2-last.dist/5*1.5,-1);//stop->move
+                double vel=last.dist/last.elapsed;
+                if(vel<1&&last.elapsed>5) // stop -> start
+                    addInterval(last.from,last.to,last.stamp-last.dist/5*1.5,last.stamp+last.elapsed/2-last.dist/5*1.5,-1);//stop->move
             }
             else{
                 double vel = (last.dist-in[distance])/(stamp-last.stamp);
@@ -69,19 +69,17 @@ void TrafficHandler::init(const char* filename) {
                     last={id,fromID,toID,stamp,passed,in[distance]};
                     continue; // anomaly
                 }
-                if(in[distance]<300){ // approaching crossing
-                    if(vel<=1){ // when sig1 vehicle stops for 5+ sec
+                //if(in[distance]<200){ // approaching crossing
+                    if(vel<=1){ // when vehicle stops
                         stopped=true;
                         int correction = in[distance]/5*1.5;
-                        //if(last.stamp-correction>stamp-correction)cout<<"1 "<< last.stamp-correction << ' ' << stamp-correction<<endl;
                         addInterval(fromID,toID,last.stamp-correction,stamp-correction,-2);
                     }
-                    else if(stopped && vel>2){ // when sig1 stopped vehicle moves
+                    else if(stopped && vel>2){ // when stopped vehicle moves
                         stopped=false;
-                        //if(last.stamp-last.dist/5*1.5>stamp-in[distance]/5*1.5)cout<<"2 "<< last.stamp-last.dist/5*1.5 << ' ' << stamp-in[distance]/5*1.5;
                         addInterval(fromID,toID,last.stamp-last.dist/5*1.5,stamp-in[distance]/5*1.5,1);
                     }
-                }
+                //}
             }
         }
         else stopped=false;
@@ -101,8 +99,8 @@ double Normal(double x){
 double TrafficHandler::query(int roadID, int toID, long long timestamp, float toNodeDist) const{
     timestamp -= toNodeDist/5*1.5;
     revise(timestamp);
-    if(toID==roadID)return 0.5;//no considering lights
-    if(!lights[roadID].count(toID))return 1/(1+exp(-1));
+    if(toID==roadID)return 1; //no considering lights
+    if(!lights[roadID].count(toID))return 0.5;//return 1/(1+exp(-1)); //
     double accu=0;
     const auto &scoreArr = lights[roadID].at(toID)->score;
     for(int bias=0;bias<=10;++bias){
@@ -113,7 +111,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
         if(l!=r)accu += scoreArr[r] * factor;
     }
     double result = 1/(1+exp(-accu));
-    //return result;
+    // return result;
     double certainty = abs(result-0.5), overall = lights[roadID].at(toID)->percent;
     return certainty > abs(overall-0.5) ? result : overall;
 }

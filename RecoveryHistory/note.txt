@@ -136,3 +136,13 @@ Straight MAE = 56.6341
 Straight RMSE = 80.5917
 Road Net MAE = 71.5488
 Road Net RMSE = 118.0810
+
+3.30-2:
+Road length Recall = 0.9387
+Road length Precision = 0.9395
+Road length F1 Score = 0.9382
+Accuracy = 0.5461
+Straight MAE = 57.5909
+Straight RMSE = 82.0227
+Road Net MAE = 73.7552
+Road Net RMSE = 121.9665

@@ -56,15 +56,15 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
 }
 
 // code from: https://www.johndcook.com/blog/cpp_phi/
-long double phi(long double x)
+double phi(double x)
 {
     // constants
-    long double a1 =  0.254829592;
-    long double a2 = -0.284496736;
-    long double a3 =  1.421413741;
-    long double a4 = -1.453152027;
-    long double a5 =  1.061405429;
-    long double p  =  0.3275911;
+    double a1 =  0.254829592;
+    double a2 = -0.284496736;
+    double a3 =  1.421413741;
+    double a4 = -1.453152027;
+    double a5 =  1.061405429;
+    double p  =  0.3275911;
 
     // Save the sign of x
     int sign = 1;
@@ -73,14 +73,14 @@ long double phi(long double x)
     x = fabs(x)/sqrtl(2.0);
 
     // A&S formula 7.1.26
-    long double t = 1.0/(1.0 + p*x);
-    long double y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*exp(-x*x);
+    double t = 1.0/(1.0 + p*x);
+    double y = 1.0 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1)*t*exp(-x*x);
 
     return 0.5*(1.0 + sign*y);
 }
 
-double CalcArea(long double _mu, long double _sigma){
-    return 1 - (double)phi(0-_mu/_sigma);
+double CalcArea(double _mu, double _sigma){
+    return 1 - phi(0-_mu/_sigma);
 }
 
 double FunctionFit::Estimate(double x, const double param[], const double cache[]) {
@@ -129,22 +129,24 @@ void FunctionFit::FindPreciseParam(int id, double param[], const double step[], 
 }
 
 void FunctionFit::FindParam(int id){
-    double origin_param[Size] = {30, 0.5, 300, upLim/20.0};
-    double tmp_param[Size]    = {30, 0.5, 300, upLim/20.0};
+    double origin_param[Size] = {151, 0.5, 151, 151};
+    double tmp_param[Size]    = {151, 0.5, 151, 151};
     auto updateParam = [&](){
         for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
     };
     updateParam();
-    double step[] = {3, 0.05,30, upLim/20.0/width};
+    double step[] = {15, 0.05,15, 15};
     safe_cout(to_string(id)+" Finding parameters... 0%");
-    for(int i=1;i<=24;++i){
-        if(i==13)safe_cout(to_string(id)+" Finding parameters... 50%");
+    for(int i=1;i<=20;++i){
+        //auto bg = clock();
+        if(i==11)safe_cout(to_string(id)+" Finding parameters... 50%");
         FindPreciseParam(id, tmp_param, step, origin_param);
         for(int j=0;j<Size;++j){
-            if(params[id][j] <= origin_param[j]-step[j]*(width-2) || params[id][j] >= origin_param[j]+step[j]*(width-2))continue;
-            step[j] /= 3;
+            if(params[id][j] <= origin_param[j]-step[j]*(width-5) || params[id][j] >= origin_param[j]+step[j]*(width-5))continue;
+            step[j] /= 4;
         }
         updateParam();
+        //safe_clog("Epoch time" + to_string((clock()-bg)/(double)CLOCKS_PER_SEC));
     }
     stringstream str;
     str << id << ": Min loss = " << loss[id];
@@ -195,11 +197,11 @@ void FunctionFit::LoadParam(const std::string& filename){
 
     for(int i=0;i<times.size();++i){
         double sum = 0;
-        for(int x=upLim;x>=0;--x){
+        for(int x=upLim;x>=0;x-=1){
             sum+=Estimate(x, params[i], cache[i]);
             prep[i][x]=sum;
         }
-        for(int x=0;x<=upLim;++x)prep[i][x]/=sum;
+        for(int x=0;x<=upLim;x+=1)prep[i][x]/=sum;
     }
 
     clog<<"Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):"<<endl;

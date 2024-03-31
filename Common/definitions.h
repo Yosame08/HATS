@@ -12,12 +12,12 @@
 #define BETA 2 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
-#define vec_len 12
+#define vec_len 13
 
 // Macros for [FuncEst.h/cpp] to fit parameters
-#define limTurn 3500 // for calculating the probability of turning
-#define limLenPos 7000 // for calculating the probability of total length
-#define limLenNeg 300 // for calculating the probability of total length (negative)
+#define limTurn 2500 // for calculating the probability of turning
+#define limLenPos 6000 // for calculating the probability of total length
+#define limLenNeg 100 // for calculating the probability of total length (negative)
 #define PARAMTURN "../../Intermediate/ParamTurn.txt"
 #define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"
@@ -41,5 +41,6 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found
 float FindAngle(int roadID, double toNodeDist);
 PointLL FindLatLon(int roadID, float toNodeDist);
 float RoadLen(int roadID);
+double GetTurnAngle(int fromID, int toID);
 
 #endif //MYDEFINES_H

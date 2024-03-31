@@ -1,8 +1,8 @@
 #include "maths.h"
 #include "structs.h"
 #include <cmath>
+#include <cassert>
 
-extern Road roads[];
 // 将角度转换为弧度
 double deg2rad(double deg) {
     return (deg * M_PI / 180);
@@ -78,14 +78,9 @@ double Angle(const Vector &a, const Vector &b) {
 }
 
 float CycleTime(long long stamp) {
-    if(stamp <= 7200) return (7200 - stamp) / 3600.0;
-    if(stamp < 14*3600) return (stamp - 7200) / 3600.0;
-    return (86400 + 7200 - stamp) / 3600.0;
-}
-
-double GetTurnAngle(int fromID, int toID){
-    const PointLL &cross = roads[toID].seg.front().line.startLL;
-    Vector vFrom = latLonToXY(roads[fromID].seg.back().line.startLL,cross)-Point{0,0};
-    Vector vTo = latLonToXY(roads[toID].seg.front().line.endLL,cross)-Point{0,0};
-    return M_PI - Angle(vFrom,vTo);
+    assert(stamp<=86400);
+    if(stamp <= 6 * 3600)return stamp / 3600;
+    else if(stamp <= 12 * 3600) return (12 * 3600 - stamp) / 3600;
+    else if(stamp <= 18 * 3600) return (stamp - 12 * 3600) / 3600;
+    return (24 * 3600 - stamp) / 3600;
 }

@@ -18,8 +18,8 @@ double readSigZ(){
 }
 double loadSigZ = readSigZ();
 double PtMatchProb(double dist){
-    static const double coefficient = 1 / (loadSigZ * sqrt(M_PI * 2));
-    double param = dist / loadSigZ;
+    static const double coefficient = 1 / (SIGZ * sqrt(M_PI * 2));
+    double param = dist / SIGZ;
     return exp(-(param * param * 0.5)) * coefficient;
 }
 
@@ -77,4 +77,11 @@ PointLL FindLatLon(int roadID, float toNodeDist){
 
 float RoadLen(int roadID){
     return roads[roadID].seg.back().sumPrev;
+}
+
+double GetTurnAngle(int fromID, int toID){
+    const PointLL &cross = roads[toID].seg.front().line.startLL;
+    Vector vFrom = latLonToXY(roads[fromID].seg.back().line.startLL,cross)-Point{0,0};
+    Vector vTo = latLonToXY(roads[toID].seg.front().line.endLL,cross)-Point{0,0};
+    return M_PI - Angle(vFrom,vTo);
 }

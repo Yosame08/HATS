@@ -1,7 +1,6 @@
 #include "definitions.h"
 #include "structs.h"
 #include "reads.h"
-#include "maths.h"
 #include "predict.h"
 #include "FuncEst.h"
 #include "funcIO.h"
@@ -93,17 +92,16 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
         q.pop();
         if(vis.chk(atRoad))continue;
         vis.set(atRoad);
-        int node = roads[atRoad].to;
-        for(auto to:g.node[node]){
-            if(to != toRoad && vis.chk(to))continue;
-            float angle = lastInfo.angle;
-            angle += (float)GetTurnAngle(atRoad, to);
+        const int &node = roads[atRoad].to;
+        for(const auto &to:g.node[node]){
+            if(vis.chk(to))continue;
+            float angle = lastInfo.angle + (float)GetTurnAngle(atRoad, to);
             // Found the destination
             if(to==toRoad){
                 float allLen = lastInfo.len + fromNodeDistB;
                 if(allLen >= float(span) * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
-                double outProb = DifDistProb(allLen, span) * AngleProb(angle, span); //  - greatCircle
+                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span); //
                 if(outProb > result.prob){
                     seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(toRoad)},
                                        lastNode, lastInfo.level+1, allLen, angle});
@@ -112,19 +110,18 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 continue;
             }
             float totLen = lastInfo.len + RoadLen(to);
-            // assert(FindAngle(to,0)==0);
             angle += FindAngle(to,0);
             // 检查应该入队还是被剪枝
-            // 各种剪枝：最多执行span/2步，也就是最快允许平均每4秒换一条路段
+            // 各种剪枝：最多执行span/2步，也就是最快允许平均每2秒换一条路段
             if(lastInfo.level > span/2)continue;
-            // span/5步后，比起点前更靠近目的地（直线）
-            if(lastInfo.level > span/5 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
+            // span/4步后，比起点前更靠近目的地（直线）
+            if(lastInfo.level > span/4 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
             if(totLen >= float(span) * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode,  lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen, span) * AngleProb(angle, span), seqSize++}); //  - greatCircle
+            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), seqSize++}); //
         }
     }
     // 搜索结束
@@ -154,7 +151,7 @@ void solve(int id){
 
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
-    FindRoad(70, 350, traceNow[0].p, found);
+    FindRoad(75, 300, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
 
     vector<SearchNode>search;
@@ -168,7 +165,7 @@ void solve(int id){
     for(int i=1;i<traceNow.size();++i){
 
         found.clear();
-        FindRoad(70, 350, traceNow[i].p, found);
+        FindRoad(75, 300, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
@@ -181,7 +178,7 @@ void solve(int id){
                 double traceProb, allProb;
                 if(old.roadID == now.roadID){
                     float ground = old.toNodeDist - now.toNodeDist, angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p), int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * //  - ground
+                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * //
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
                     allProb = old.prob * now.prob * traceProb;
                     if(allProb > maxNode.prob) {

@@ -12,9 +12,9 @@ public:
     enum pName{
         sig1,S1,sig2,mu2,Size
     };
-    // This construction function is to fit parameters
+    // use this to fit parameters
     explicit FunctionFit(int limit): upLim(limit){}
-    // This construction function is to load parameters
+    // use this to load parameters
     explicit FunctionFit(int limit, const std::string &filename): upLim(limit){
         LoadParam(filename);
     }

@@ -22,6 +22,5 @@ double DistPointSeg(const Line &seg, const PointLL &measure, PointLL &cross);
 double Angle(const Vector &a, const Vector &b);
 int distToTwo(int hour);
 float CycleTime(long long stamp);
-double GetTurnAngle(int fromID, int toID);
 
 #endif //MYMATH_H
