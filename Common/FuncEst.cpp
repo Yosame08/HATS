@@ -129,17 +129,19 @@ void FunctionFit::FindPreciseParam(int id, double param[], const double step[], 
 }
 
 void FunctionFit::FindParam(int id){
-    double origin_param[Size] = {151, 0.5, 151, 151};
-    double tmp_param[Size]    = {151, 0.5, 151, 151};
+    double origin_param[Size], tmp_param[Size], step[Size];
+    params[id][0] = params[id][2] = params[id][3] = upLim/40.0+1;
+    step[0] = step[2] = step[3] = upLim/40.0/width;
+    params[id][1] = 0.5;
+    step[1] = 0.05;
     auto updateParam = [&](){
         for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
     };
     updateParam();
-    double step[] = {15, 0.05,15, 15};
     safe_cout(to_string(id)+" Finding parameters... 0%");
-    for(int i=1;i<=20;++i){
+    for(int i=1;i<=24;++i){
         //auto bg = clock();
-        if(i==11)safe_cout(to_string(id)+" Finding parameters... 50%");
+        if(i==13)safe_cout(to_string(id)+" Finding parameters... 50%");
         FindPreciseParam(id, tmp_param, step, origin_param);
         for(int j=0;j<Size;++j){
             if(params[id][j] <= origin_param[j]-step[j]*(width-5) || params[id][j] >= origin_param[j]+step[j]*(width-5))continue;
@@ -201,14 +203,19 @@ void FunctionFit::LoadParam(const std::string& filename){
             sum+=Estimate(x, params[i], cache[i]);
             prep[i][x]=sum;
         }
-        for(int x=0;x<=upLim;x+=1)prep[i][x]/=sum;
+        for(int x=0;x<=upLim;x+=1){
+            prep[i][x]/=sum;
+            if(prep[i][x]<minProb)prep[i][x]=minProb;
+        }
     }
 
     clog<<"Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):"<<endl;
-    clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(300,12)<<' '<<Estimate_wrap(2000,16)<<endl;
+    clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(100,12)<<' '<<Estimate_wrap(1000,16)<<endl;
 }
 
 double FunctionFit::Estimate_wrap(double val, int id) const{
-    return prep[id][int(abs(val))];
+    int v = int(abs(val));
+    if(v>=upLim)return minProb;
+    return prep[id][v];
     //return Estimate(val, params[id], cache[id]);
 }

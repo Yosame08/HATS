@@ -69,7 +69,7 @@ void TrafficHandler::init(const char* filename) {
                     last={id,fromID,toID,stamp,passed,in[distance]};
                     continue; // anomaly
                 }
-                //if(in[distance]<200){ // approaching crossing
+                //if(in[distance]<300){ // approaching crossing
                     if(vel<=1){ // when vehicle stops
                         stopped=true;
                         int correction = in[distance]/5*1.5;
@@ -111,7 +111,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
         if(l!=r)accu += scoreArr[r] * factor;
     }
     double result = 1/(1+exp(-accu));
-    // return result;
+    //return result;
     double certainty = abs(result-0.5), overall = lights[roadID].at(toID)->percent;
     return certainty > abs(overall-0.5) ? result : overall;
 }

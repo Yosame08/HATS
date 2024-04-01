@@ -26,9 +26,10 @@ GridType inGrid;
 vector<float> road_vectors[PATH_NUM];
 void ReadVectors();
 
-pair<int,int> FindIndex(unsigned long long time){
+/// @brief Find the index of time interval
+/// @param out l, r
+void FindIndex(unsigned long long time, int &l, int &r){
     const auto &times = parTurn.times;
-    int l, r;
     auto f = lower_bound(times.begin(), times.end(), time);
     if(f==times.end()) l = r = int(times.size()-1); // time > maximum interval
     else if(f==times.begin()&&time<*f) l = r = 0; // time < minimum interval
@@ -37,26 +38,30 @@ pair<int,int> FindIndex(unsigned long long time){
         r = int(f-times.begin());
         l = r - 1;
     }
-    return make_pair(l, r);
 }
 
 /// @param angle RAD
 /// @brief Convert radians to angles and predict with the fitted function
 double AngleProb(double angle, int time){
-    auto id = FindIndex(time);
-    if(id.first==id.second)return parTurn.Estimate_wrap(angle*180/M_PI, id.first);
-    return (parTurn.Estimate_wrap(angle*180/M_PI, id.first)
-            +parTurn.Estimate_wrap(angle*180/M_PI, id.second))/2;
+    //assert(angle==angle);
+    int l, r;
+    FindIndex(time, l, r);
+    if(l == r)return parTurn.Estimate_wrap(angle*180/M_PI, l);
+    return (parTurn.Estimate_wrap(angle*180/M_PI, l)
+            +parTurn.Estimate_wrap(angle*180/M_PI, r))/2;
 }
 
 double DifDistProb(double dif, int time) {
+    //assert(dif==dif);
     const auto &use = dif<0?parLenNeg:parLenPos;
-    auto id = FindIndex(time);
-    if(id.first==id.second)return use.Estimate_wrap(dif,id.first);
-    return (use.Estimate_wrap(dif,id.first)+use.Estimate_wrap(dif,id.second))/2;
+    int l, r;
+    FindIndex(time, l, r);
+    if(l == r)return use.Estimate_wrap(dif,l);
+    return (use.Estimate_wrap(dif,l)+use.Estimate_wrap(dif,r))/2;
 }
 
 double SearchDifDistProb(double dif, int time) {
+    //assert(dif==dif);
     if(dif<0)return 1;
     return DifDistProb(dif, time);
 }
@@ -66,13 +71,14 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
     const float &toNodeDistA = old.toNodeDist, fromNodeDistB = RoadLen(toRoad) - now.toNodeDist;
     // seqPath is to restore nodes searched. Every node restore information about current road and which node is previous road
     vector<QueueInfo2>seqPath;
-    seqPath.reserve(4096);
+    //seqPath.reserve(4096);
     // Use DP to simplify searching process, which is like Dijkstra but use "probability" as the key
     //bitset<PATH_NUM+1>vis; //bool vis[PATH_NUM+1]{};
     BitInt vis;
     priority_queue<QueueInfo>q;
     // Initialize some const Value to prune search tree
     const auto greatCircle = (float)lastTr.p.dist(nowTr.p);
+    //assert(greatCircle==greatCircle);
     const int span = int(nowTr.timestamp - lastTr.timestamp);
     int seqSize = 1;
     // Set starting state
@@ -83,8 +89,8 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
     while(!q.empty()){
         int lastNode = q.top().node;
-        const auto &lastInfo = seqPath[lastNode];
-        const int &atRoad = lastInfo.pNode.roadID;
+        const auto lastInfo = seqPath[lastNode];
+        int atRoad = lastInfo.pNode.roadID;
         if(atRoad == toRoad && seqPath.size()!=1){
             result = {q.top().accuProb, lastInfo.len, lastInfo.angle, lastNode};
             break;
@@ -92,7 +98,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
         q.pop();
         if(vis.chk(atRoad))continue;
         vis.set(atRoad);
-        const int &node = roads[atRoad].to;
+        int node = roads[atRoad].to;
         for(const auto &to:g.node[node]){
             if(vis.chk(to))continue;
             float angle = lastInfo.angle + (float)GetTurnAngle(atRoad, to);
@@ -101,27 +107,31 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 float allLen = lastInfo.len + fromNodeDistB;
                 if(allLen >= float(span) * 40)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
+                assert(allLen - greatCircle==allLen - greatCircle);
                 double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span); //
                 if(outProb > result.prob){
                     seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(toRoad)},
                                        lastNode, lastInfo.level+1, allLen, angle});
-                    q.push({outProb, seqSize++}); //  - greatCircle
+                    q.push({outProb, seqSize++});
                 }
                 continue;
             }
             float totLen = lastInfo.len + RoadLen(to);
             angle += FindAngle(to,0);
             // 检查应该入队还是被剪枝
-            // 各种剪枝：最多执行span/2步，也就是最快允许平均每2秒换一条路段
-            if(lastInfo.level > span/2)continue;
+            // 各种剪枝：最多执行span/3步，也就是最快允许平均每3秒换一条路段
+            if(lastInfo.level > span/3)continue;
             // span/4步后，比起点前更靠近目的地（直线）
             if(lastInfo.level > span/4 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
             if(totLen >= float(span) * 40)continue;
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
-                               lastNode,  lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen - greatCircle, span) * AngleProb(angle, span), seqSize++}); //
+                               lastNode, lastInfo.level+1, totLen, angle});
+//            if(totLen-greatCircle!=totLen-greatCircle){
+//                safe_clog(to_string(to)+" "+ to_string(RoadLen(to))+" "+ to_string(lastInfo.len));
+//            }
+            q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) * AngleProb(angle, span), seqSize++}); //
         }
     }
     // 搜索结束
@@ -139,7 +149,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
-    //if(id<23)return;
+    //if(id>263)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -151,7 +161,7 @@ void solve(int id){
 
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
-    FindRoad(75, 300, traceNow[0].p, found);
+    FindRoad(80, 400, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
 
     vector<SearchNode>search;
@@ -165,7 +175,7 @@ void solve(int id){
     for(int i=1;i<traceNow.size();++i){
 
         found.clear();
-        FindRoad(75, 300, traceNow[i].p, found);
+        FindRoad(80, 400, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
@@ -178,7 +188,8 @@ void solve(int id){
                 double traceProb, allProb;
                 if(old.roadID == now.roadID){
                     float ground = old.toNodeDist - now.toNodeDist, angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground, int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * //
+                    assert(traceNow[i - 1].p.dist(traceNow[i].p) == traceNow[i - 1].p.dist(traceNow[i].p));
+                    traceProb = DifDistProb(ground - traceNow[i - 1].p.dist(traceNow[i].p), int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * //
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
                     allProb = old.prob * now.prob * traceProb;
                     if(allProb > maxNode.prob) {
@@ -244,7 +255,7 @@ void solve(int id){
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});
         vector<float> *maxPredVel=nullptr;
-        long long minDif = 0, tm = traceNow[last.pointID].timestamp, st = traceNow[0].timestamp;
+        long long minDif = 0, tm = traceNow[last.pointID].timestamp;//, st = traceNow[0].timestamp;
         //const long long journey = traceNow.back().timestamp-traceNow.front().timestamp;
         float toNodeDist = last.toNodeDist, passed = 0, vel;// = beginVel;
         int roadID = last.roadID, toID = (*node.path)[1].roadID, index=1;

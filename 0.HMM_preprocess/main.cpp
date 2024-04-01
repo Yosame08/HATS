@@ -47,14 +47,17 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         cout<<"(Bug) angle less than 0 [step 0: main.cpp]";
     assert(q.top().angle>=0);
     SearchRes result{-1};
-    bool fin=false;
 
-    while(!q.empty()&&!fin){
+    while(!q.empty()){
         const auto top=q.top();q.pop();
         const auto &lastPath = seqPath[top.node].first;
+        if(lastPath.roadID==toRoad){
+            result = {DifDistProb(top.len - greatCircle), top.len, top.angle, top.node};
+            break;
+        }
         if(vis.chk(lastPath.roadID))continue;
         vis.set(lastPath.roadID);
-        int node = roads[lastPath.roadID].to;
+        const int &node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
             if(vis.chk(to))continue;
             float angle = top.angle + GetTurnAngle(seqPath[top.node].first.roadID, to);
@@ -62,14 +65,13 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
                 float allLen = top.len + fromNodeDistB;
                 if(allLen>=span*40)continue;
                 seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
-                result = {DifDistProb(allLen - greatCircle), allLen, angle+FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB),(int)seqPath.size()-1};
-                fin=true;
-                break;
+                q.push({top.level+1, (int)seqPath.size()-1, allLen, 0, angle+FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB)});
+                continue;
             }
             float totLen = top.len + RoadLen(to);
             if(totLen>=span*40||top.level>RECOVER_INTERVAL)continue;
             seqPath.push_back({{to, lastPath.timestamp, (float)RoadLen(to)}, top.node});
-            q.push({top.level+1, (int)seqPath.size()-1, totLen, (float)roads[to].seg[0].line.startLL.dist(nowTr.p), angle+FindAngle(to,0)});
+            q.push({top.level+1, (int)seqPath.size()-1, totLen, (float)roads[to].seg.back().line.endLL.dist(nowTr.p), angle+FindAngle(to,0)});
         }
     }
     // 搜索结束
@@ -105,7 +107,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>angles;
     int matched[traceNow.size()];
-    FindRoad(50, 50, traceNow[0].p, found);
+    FindRoadMulti(50, 50, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
@@ -116,7 +118,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoad(50, 50, traceNow[i].p, found);
+        FindRoadMulti(50, 50, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
@@ -132,10 +134,10 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                     path = new Path();
                     ground = old.toNodeDist - now.toNodeDist;
                     if (ground < -RECOVER_INTERVAL) continue;
-                    traceProb = DifDistProb(traceNow[i - 1].p.dist(traceNow[i].p) - ground);
+                    traceProb = DifDistProb(ground - traceNow[i - 1].p.dist(traceNow[i].p));
                     path->push_back({now.roadID, traceNow[i].timestamp, now.toNodeDist});
                     angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    if (angle < 0)angle = 0;
+                    //if (angle < 0)angle = 0;
                 } else {
                     SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
                                                   RoadLen(now.roadID) - now.toNodeDist, traceNow[i - 1], traceNow[i]);
@@ -186,7 +188,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 if(!recent24[i])break;
                 int &old=recent24[i];
                 totLen += search[old].length;
-                float dif = totLen;// - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
+                float dif = totLen - traceNow[node.pointID].p.dist(traceNow[search[old].pointID].p);
                 totAngle += angles[old];
                 difSingle[i].push_back(dif);
                 turnStash[i].push_back(totAngle);

@@ -3,11 +3,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-input_size = 16
+input_size = 18
 output_size = 1
 model = nn.Sequential(
     nn.Linear(input_size, 256), nn.ELU(),
-    #nn.Linear(512, 256), nn.ELU(),
     nn.Linear(256, 128), nn.ELU(),
     nn.Linear(128, 64), nn.ELU(),
     nn.Linear(64, 32), nn.ELU(),
@@ -31,6 +30,7 @@ with open("road_vectors.txt") as f:
 def pred(roadID, dist, prob, timestamp, journey):
     arr = copy.copy(roads[roadID])
     arr.append(dist)
+    arr.append(1-dist/roads[roadID][9])
     arr.append(prob)
     arr.append(timestamp)
     arr.append(journey)
@@ -41,4 +41,4 @@ def pred(roadID, dist, prob, timestamp, journey):
 
 
 for i in range(0, 20):
-    pred(31229, 0.03, 0.5, 8.98, i/10)
+    pred(31229, 0.003, 0.5, 8.98, i/10)

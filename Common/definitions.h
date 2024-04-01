@@ -22,6 +22,7 @@
 #define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"
 #define mxMissing 30 // maximum number of consecutive missing records in the trajectory
+#define minProb 1e-150 // minProb^2 doesn't exceed double
 
 #include <vector>
 #include <unordered_map>
@@ -35,6 +36,7 @@ using GridType = std::unordered_map<int,std::unordered_map<int,std::vector<GridI
 
 double PtMatchProb(double dist);
 void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found);
+void FindRoadMulti(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found);
 /*
  * Find out the total degrees of turning from the starting point of the segment
  */

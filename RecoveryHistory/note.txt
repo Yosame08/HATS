@@ -146,3 +146,43 @@ Straight MAE = 57.5909
 Straight RMSE = 82.0227
 Road Net MAE = 73.7552
 Road Net RMSE = 121.9665
+
+4.1 - 30m:
+Road length Recall = 0.9382
+Road length Precision = 0.9427
+Road length F1 Score = 0.9397
+Accuracy = 0.5360
+Straight MAE = 58.4065
+Straight RMSE = 83.2450
+Road Net MAE = 73.9255
+Road Net RMSE = 121.7713
+
+4.1 - 40m:
+Road length Recall = 0.9383
+Road length Precision = 0.9430
+Road length F1 Score = 0.9399
+Accuracy = 0.5397
+Straight MAE = 57.9724
+Straight RMSE = 82.9351
+Road Net MAE = 73.4874
+Road Net RMSE = 121.4991
+
+4.1 - 50m:
+Road length Recall = 0.9386
+Road length Precision = 0.9434
+Road length F1 Score = 0.9403
+Accuracy = 0.5405
+Straight MAE = 57.5963
+Straight RMSE = 82.2156
+Road Net MAE = 72.9304
+Road Net RMSE = 120.5008
+
+4.1 fix:
+Road length Recall = 0.9438
+Road length Precision = 0.9557
+Road length F1 Score = 0.9492
+Accuracy = 0.5285
+Straight MAE = 60.2316
+Straight RMSE = 86.7776
+Road Net MAE = 74.3448
+Road Net RMSE = 121.4688
