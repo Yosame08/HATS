@@ -15,13 +15,11 @@
 #define vec_len 13
 
 // Macros for [FuncEst.h/cpp] to fit parameters
-#define limTurn 2500 // for calculating the probability of turning
-#define limLenPos 6000 // for calculating the probability of total length
-#define limLenNeg 100 // for calculating the probability of total length (negative)
+#define granularity 2
 #define PARAMTURN "../../Intermediate/ParamTurn.txt"
 #define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"
-#define mxMissing 30 // maximum number of consecutive missing records in the trajectory
+#define mxMissing 25 // maximum number of consecutive missing records in the trajectory
 #define minProb 1e-150 // minProb^2 doesn't exceed double
 
 #include <vector>

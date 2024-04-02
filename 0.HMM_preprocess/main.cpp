@@ -23,12 +23,9 @@ G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[524288];
 ostringstream fullStream[524288], crossStream[524288];
-//Feature feature[524288];
 GridType inGrid;
 vector<float>turnAngles[256][25];
 vector<float>difDists[256][25];
-//vector<pair<float,float>>dtAll[256][25];
-//vector<float>anchorError[256];
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -107,7 +104,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>angles;
     int matched[traceNow.size()];
-    FindRoadMulti(50, 50, traceNow[0].p, found);
+    FindRoadMulti(60, 60, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
@@ -118,7 +115,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoadMulti(50, 50, traceNow[i].p, found);
+        FindRoadMulti(60, 60, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
@@ -137,7 +134,6 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                     traceProb = DifDistProb(ground - traceNow[i - 1].p.dist(traceNow[i].p));
                     path->push_back({now.roadID, traceNow[i].timestamp, now.toNodeDist});
                     angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
-                    //if (angle < 0)angle = 0;
                 } else {
                     SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
                                                   RoadLen(now.roadID) - now.toNodeDist, traceNow[i - 1], traceNow[i]);
@@ -176,7 +172,6 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     int recent24[25]{};
 
     vector<float>difSingle[25], turnStash[25];
-//    vector<pair<float,float>>dt[25];
     while(true){
         const auto &node=search[outID];
         // 1. Stat: distance difference and angle turned
@@ -184,7 +179,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             float totLen=0, totAngle=0;
             // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
             recent24[0]=outID;
-            for(int i=4;i<=24;++i){
+            for(int i=1;i<=24;++i){
                 if(!recent24[i])break;
                 int &old=recent24[i];
                 totLen += search[old].length;
@@ -321,7 +316,6 @@ int main() {
     difDistCount<<fixed<<setprecision(1);
     for(int j=4;j<=24;++j){
         turnCount<<j*15<<" Secs:\n";
-//        for(int i=0;i<num_threads;++i)for(auto x:dtAll[i][j])turnCount<<x.first<<' '<<(x.second*180/M_PI)<<' ';
         for(int i=0;i<num_threads;++i)for(auto x:turnAngles[i][j])turnCount<<(x*180/M_PI)<<' ';
         turnCount<<'\n';
         difDistCount<<j*15<<" Secs:\n";

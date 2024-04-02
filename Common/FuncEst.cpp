@@ -27,26 +27,29 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
         if (line.find("Secs:") != std::string::npos) {
             iss >> timeNow;
             times.emplace_back(timeNow);
-            stat[tot].reserve(upLim+1);
-            for(int i=0;i<=upLim;++i)stat[tot][i]=0;
         }
         else {
             vector<float> ins;
             float num;
             while (iss >> num) {
                 if(rev)num=-num;
-                if(num<0)continue;
+                num/=granularity;
+                if(num<0||(rev&&num==0))continue;
                 ins.push_back(num);
                 if(num>maxNum)maxNum=num;
             }
             sort(ins.begin(),ins.end());
             int accept = ins.size() * 0.999;
+            sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
             clog<<"[FunctionFit] Time = "<<times.back()<<", Origin max: "<<ins.back()<<", 99.9% max: "<<ins[accept-1]<<endl;
+            upLim[tot] = ins[accept-1]+1;
+            stat[tot].reserve(upLim[tot]+1);
+            for(int i=0;i<=upLim[tot];++i)stat[tot][i]=0;
             for(int i=0;i<accept;++i){
-                if(int(ins[i])>upLim)break;
+                if(int(ins[i])>upLim[tot])break;
                 ++stat[tot][int(ins[i])];
             }
-            for(int i=0;i<=upLim; ++i){
+            for(int i=0;i<=upLim[tot]; ++i){
                 stat[tot][i]/=accept;
                 assert(stat[tot][i]<1);
             }
@@ -91,7 +94,7 @@ double FunctionFit::Estimate(double x, const double param[], const double cache[
 
 void FunctionFit::EstiUpdate(int id, const double param[]){
     double l=0;
-    for(int i=0; i<=upLim; ++i){
+    for(int i=0; i<=upLim[id]; ++i){
         double est = Estimate(i, param, cache[id]);
         assert(est==est); // nan inf
         l += abs(est - stat[id][i]);
@@ -102,7 +105,7 @@ void FunctionFit::EstiUpdate(int id, const double param[]){
     }
 }
 
-const int width = 10;
+const int width = 16;
 void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
     auto &cacheArr = cache[id];
     for(double v1=ori[0]-step[0]*width; v1<=ori[0]+step[0]*width; v1+=step[0]) {
@@ -110,7 +113,7 @@ void FunctionFit::FindPreciseParam(int id, double param[], const double step[], 
         param[sig1] = v1;
         cacheArr[sig1] = param[sig1] * param[sig1] * 2;
         for(double v2=ori[1]-step[1]*width; v2<=ori[1]+step[1]*width; v2+=step[1]) {
-            if(v2<=1e-10)continue;
+            if(v2<=1e-10||v2>=1)continue;
             param[S1] = v2;
             cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
             for (double v3=ori[2]-step[2]*width; v3<=ori[2]+step[2]*width; v3+=step[2]) {
@@ -130,25 +133,27 @@ void FunctionFit::FindPreciseParam(int id, double param[], const double step[], 
 
 void FunctionFit::FindParam(int id){
     double origin_param[Size], tmp_param[Size], step[Size];
-    params[id][0] = params[id][2] = params[id][3] = upLim/40.0+1;
-    step[0] = step[2] = step[3] = upLim/40.0/width;
-    params[id][1] = 0.5;
-    step[1] = 0.05;
+    params[id][sig1] = sigMul1[id];
+    params[id][S1] = 0.5;
+    params[id][sig2] = (sigMul3[id]-midVal[id]) / 3;
+    params[id][mu2] = midVal[id];
+    safe_clog(to_string(id)+" initial params: "+to_string(params[id][0])+" "+to_string(params[id][1])
+    +" "+to_string(params[id][2])+" "+to_string(params[id][3]));
+    for(int i=0;i<Size;++i)step[i] = params[id][i]/width;
+
     auto updateParam = [&](){
         for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
     };
     updateParam();
-    safe_cout(to_string(id)+" Finding parameters... 0%");
-    for(int i=1;i<=24;++i){
-        //auto bg = clock();
-        if(i==13)safe_cout(to_string(id)+" Finding parameters... 50%");
+    //safe_cout(to_string(id)+" Finding parameters... 0%");
+    for(int i=1;i<=30;++i){
+        if(i==16)safe_cout(to_string(id)+" Finding parameters... 50%");
         FindPreciseParam(id, tmp_param, step, origin_param);
         for(int j=0;j<Size;++j){
-            if(params[id][j] <= origin_param[j]-step[j]*(width-5) || params[id][j] >= origin_param[j]+step[j]*(width-5))continue;
-            step[j] /= 4;
+            if(params[id][j] <= origin_param[j]-step[j]*(width/2) || params[id][j] >= origin_param[j]+step[j]*(width/2))continue;
+            step[j] /= 2;
         }
         updateParam();
-        //safe_clog("Epoch time" + to_string((clock()-bg)/(double)CLOCKS_PER_SEC));
     }
     stringstream str;
     str << id << ": Min loss = " << loss[id];
@@ -167,7 +172,7 @@ void FunctionFit::Output(const string &filename){
     ofstream out(filename);
     out<<fixed<<setprecision(10);
     for(int i=0;i<times.size();++i){
-        out<<times[i]<<" Secs:\n";
+        out<<times[i]<<" Secs "<<upLim[i]<<"\n";
         for(auto j:params[i])out << j << ' ';
         out<<'\n';
     }
@@ -180,9 +185,12 @@ void FunctionFit::LoadParam(const std::string& filename){
     int time,tot=0;
     while (std::getline(file, line)) {
         std::istringstream iss(line);
-        if (line.find("Secs:") != std::string::npos) {
-            iss >> time;
+        if (line.find("Secs") != std::string::npos) {
+            string tmp;
+            int lim;
+            iss >> time >> tmp >> lim;
             times.push_back(time);
+            upLim[tot] = lim;
         } else {
             int cnt=0;
             while(iss >> params[tot][cnt++]);
@@ -199,23 +207,23 @@ void FunctionFit::LoadParam(const std::string& filename){
 
     for(int i=0;i<times.size();++i){
         double sum = 0;
-        for(int x=upLim;x>=0;x-=1){
+        for(int x=upLim[i];x>=0;x-=1){
             sum+=Estimate(x, params[i], cache[i]);
             prep[i][x]=sum;
         }
-        for(int x=0;x<=upLim;x+=1){
+        for(int x=0;x<=upLim[i];x+=1){
             prep[i][x]/=sum;
             if(prep[i][x]<minProb)prep[i][x]=minProb;
         }
     }
 
     clog<<"Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):"<<endl;
-    clog<<Estimate_wrap(0,8)<<' '<<Estimate_wrap(100,12)<<' '<<Estimate_wrap(1000,16)<<endl;
+    clog<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(100,12)<<' '<<Estimate_wrap(1000,16)<<endl;
 }
 
 double FunctionFit::Estimate_wrap(double val, int id) const{
-    int v = int(abs(val));
-    if(v>=upLim)return minProb;
+    int v = int(abs(val/granularity));
+    if(v>=upLim[id])return minProb;
     return prep[id][v];
     //return Estimate(val, params[id], cache[id]);
 }

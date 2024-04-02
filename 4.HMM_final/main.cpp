@@ -17,7 +17,7 @@
 #include <cassert>
 using namespace std;
 
-FunctionFit parTurn(limTurn,PARAMTURN), parLenPos(limLenPos,PARAMLENPOS), parLenNeg(limLenNeg,PARAMLENNEG);
+FunctionFit parTurn(PARAMTURN), parLenPos(PARAMLENPOS), parLenNeg(PARAMLENNEG);
 G g;
 Road roads[PATH_NUM];
 vector<Trace>traces[524288];
@@ -128,9 +128,6 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode, lastInfo.level+1, totLen, angle});
-//            if(totLen-greatCircle!=totLen-greatCircle){
-//                safe_clog(to_string(to)+" "+ to_string(RoadLen(to))+" "+ to_string(lastInfo.len));
-//            }
             q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) * AngleProb(angle, span), seqSize++}); //
         }
     }

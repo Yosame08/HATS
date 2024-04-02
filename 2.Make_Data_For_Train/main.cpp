@@ -16,19 +16,19 @@ vector<string> addHeader = {"toNode", "roadRatio", "greenProb", "time", "journey
 vector<string> header;
 
 void TaskParam(){
-    FunctionFit turn(limTurn);
+    FunctionFit turn;
     turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
     turn.FitParam();
     turn.Output(PARAMTURN);
     cout<<"[Fit Parameters] Turn: Finish"<<endl;
 
-    FunctionFit lenPos(limLenPos);
+    FunctionFit lenPos;
     lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
     lenPos.FitParam();
     lenPos.Output(PARAMLENPOS);
     cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
 
-    FunctionFit lenNeg(limLenNeg);
+    FunctionFit lenNeg;
     lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
     lenNeg.FitParam();
     lenNeg.Output(PARAMLENNEG);
@@ -85,7 +85,6 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
             dataVel.append(newLine);
             auto &line = rawTraffic[info[i].csvID];
             long long timestamp = line["hour"]*3600+line["sec"];
-            //assert(timestamp<=86400);
             double toNodeDist = line["distance"];
             double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
             passed += info[i-1].passed;
@@ -97,7 +96,6 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
         dataVel.append(newLine);
         double vel = info[i].vel;
         passed += info[i].passed;
-        //assert(info[i].timestamp<=86400);
         dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, 1-info[i].toNode/1000/road_vectors[info[i].roadID][vec_len-1],
                                  traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode),
                                  CycleTime(info[i].timestamp), passed/lasting[info[i].trajID].second,  vel); // (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first
@@ -108,7 +106,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-    threads.emplace_back(TaskParam);
+//    threads.emplace_back(TaskParam);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));

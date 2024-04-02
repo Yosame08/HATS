@@ -70,7 +70,7 @@ void FindRoadMulti(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found
         double high=f.second.top().first;
         while(!f.second.empty()){
             auto &t=f.second.top();
-            if(t.first/high>=EPS)found.push_back({f.first, t.second, t.first});
+            if(t.first/high>=1e-2)found.push_back({f.first, t.second, t.first});
             else break;
             f.second.pop();
         }
