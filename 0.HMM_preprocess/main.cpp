@@ -7,7 +7,6 @@ const std::string mode = "train";
 
 #include "structs.h"
 #include "reads.h"
-#include "maths.h"
 #include <fstream>
 #include <iostream>
 #include <iomanip>

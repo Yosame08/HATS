@@ -77,8 +77,8 @@ int main(){
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTracesWithRoad("../../test_output.txt", m, traceSTD);
     ifstream fullSTD("Full_Matched_STD.txt");
-    ReadTracesWithRoad("../../RecoveryHistory/4.2minus300.txt", m, traceOut);
-    ifstream fullOUT("../../RecoveryHistory/4.2minus300Full.txt");
+    ReadTracesWithRoad("../../RecoveryHistory/4.2 50.txt", m, traceOut);
+    ifstream fullOUT("../../RecoveryHistory/4.2Full50.txt");
     int m1,m2;
     fullOUT >> m1, fullOUT.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     fullSTD >> m2, fullSTD.ignore(std::numeric_limits<std::streamsize>::max(), '\n');

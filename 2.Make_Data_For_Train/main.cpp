@@ -106,7 +106,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
 
 int main(){
     std::vector<std::thread> threads;
-//    threads.emplace_back(TaskParam);
+    threads.emplace_back(TaskParam);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
