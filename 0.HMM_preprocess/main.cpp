@@ -1,8 +1,5 @@
 #include "definitions.h"
 #undef TRACEFILE
-
-#include <string>
-const std::string mode = "train";
 #define TRACEFILE ("../../"+mode+"_input.txt")
 
 #include "structs.h"
@@ -16,7 +13,9 @@ const std::string mode = "train";
 #include <thread>
 #include <atomic>
 #include <cassert>
+#include <cstring>
 using namespace std;
+string mode = "train"; // default value
 
 G g;
 Road roads[PATH_NUM];
@@ -186,14 +185,10 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 totAngle += angles[old];
                 difSingle[i].push_back(dif);
                 turnStash[i].push_back(totAngle);
-//                dt[i].emplace_back(dif,totAngle);
             }
             for(int i=24;i>=1;--i)recent24[i]=recent24[i-1];
-            //vels.push_back(recent24[1]);
         }
 
-        float dist = traceNow[node.pointID].p.dist(FindLatLon(node.roadID, node.toNodeDist));
-        //anchorError[thread].push_back(dist);
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
         for(int i=(int)node.path->size()-1;i>=0;--i){
             if(!myAssert((*node.path)[i].timestamp>0,"(Bug) Exists a path with negative timestamp at trace"+to_string(id)))return;
@@ -203,10 +198,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         if(node.prev==-1)break;
         outID=node.prev;
     }
-    // feature[id]={journeyLen/(float)journeyTime, 0, 0, id};
     int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear;
-    // float journeyLen = -search[outID].toNodeDist; long long journeyTime = traceNow.back().timestamp-traceNow.front().timestamp;
-    // bool ignoreInfo = false;
     cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
         auto &now=fullPath[p];
@@ -216,32 +208,25 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         }
         //nextOut is the next point which refers to a different roadID
         if(p==nextOut){
-            //ignoreInfo=false;
             for(int x=p-1;x>=0;--x){
                 if(fullPath[x].roadID != now.roadID){
                     nextOut=x;
                     break;
                 }
-                // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
-                //else if(fullPath[x].toNodeDist>300&fullPath[x+1].toNodeDist-fullPath[x].toNodeDist<fullPath[x].timestamp-fullPath[x+1].timestamp)ignoreInfo=true;
             }
             if(now.roadID == fullPath[nextOut].roadID)nextOut=-1;
         }
         assert(now.timestamp>0);
         if(p&&fullPath[p-1].timestamp==now.timestamp)continue; // if multiple points have the same timestamp, using the farthest
         //if(nextOut!=-1 && now.timestamp>0){
-        //if(ignoreInfo)continue;
         if(p){
             long long hour=(now.timestamp%86400/3600+TIMEZONE)%24,sec=now.timestamp%3600;
             cross << id << ',' << now.roadID << ',' << (nextOut==-1?now.roadID:fullPath[nextOut].roadID) << ',' << hour << ',' << sec << ','
                   << now.toNodeDist << ',' << fullPath[p-1].timestamp - now.timestamp << '\n';
         }
-        // old:       cross << id << ',' << now.roadID << ',' << fullPath[nextOut].roadID << ',' << hour << ',' << sec << ','
-        //                  << now.toNodeDist << ',' << fullPath[nextOut].timestamp - now.timestamp << '\n';
     }
     fullMatch << '\n';
     for(int i=4;i<=24;++i){
-//        dtAll[thread][i].insert(dtAll[thread][i].end(),dt[i].begin(),dt[i].end());
         difDists[thread][i].insert(difDists[thread][i].end(),difSingle[i].begin(),difSingle[i].end());
         turnAngles[thread][i].insert(turnAngles[thread][i].end(),turnStash[i].begin(),turnStash[i].end());
     }
@@ -280,13 +265,27 @@ void process(int start, int end, int thread){
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     int m;
     ReadTraces(TRACEFILE, m, traces, true);
     cout<<"Read "<<m<<" trajectories"<<endl;
-    const int num_threads = 16;
+
+    int num_threads = 16; // default value
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
+            num_threads = std::stoi(argv[i + 1]);
+            if(num_threads<1)num_threads=1;
+            ++i; // skip next argument
+        } else if (strcmp(argv[i], "-v") == 0) {
+            mode = "valid";
+        } else if (strcmp(argv[i], "-t") == 0) {
+            mode = "train";
+        }
+        else cout << "redundant argument: " << argv[i] << endl;
+    }
+
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
@@ -322,10 +321,5 @@ int main() {
         difDistCount<<'\n';
     }
 
-//    if(mode == "train"){
-//        ofstream anchor("../../Intermediate/anchorError.txt");
-//        anchor<<fixed<<setprecision(3);
-//        for(int i=0;i<num_threads;++i)for(auto x:anchorError[i])anchor<<x<<' ';
-//    }
     return 0;
 }

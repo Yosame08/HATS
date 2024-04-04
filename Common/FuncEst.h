@@ -20,7 +20,7 @@ public:
     }
     // Set rev to true to read negative values
     void ReadStat(const std::string &filename, bool rev);
-    void FitParam();
+    void FitParam(int threads);
     void Output(const std::string &filename);
     void LoadParam(const std::string& filename);
     double Estimate_wrap(double val, int id) const;

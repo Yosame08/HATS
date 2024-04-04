@@ -8,29 +8,29 @@
 #include <fstream>
 #include <thread>
 #include <cassert>
-#include <algorithm>
+#include <cstring>
 using namespace std;
 
 std::vector<std::vector<double>> road_vectors(PATH_NUM);
 vector<string> addHeader = {"toNode", "roadRatio", "greenProb", "time", "journey", "vel"};
 vector<string> header;
 
-void TaskParam(){
+void TaskParam(int threads){
     FunctionFit turn;
     turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
-    turn.FitParam();
+    turn.FitParam(threads);
     turn.Output(PARAMTURN);
     cout<<"[Fit Parameters] Turn: Finish"<<endl;
 
     FunctionFit lenPos;
     lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
-    lenPos.FitParam();
+    lenPos.FitParam(threads);
     lenPos.Output(PARAMLENPOS);
     cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
 
     FunctionFit lenNeg;
     lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
-    lenNeg.FitParam();
+    lenNeg.FitParam(threads);
     lenNeg.Output(PARAMLENNEG);
     cout<<"[Fit Parameters] Length(Negative): Finish"<<endl;
 }
@@ -104,9 +104,18 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
     safe_clog("Write DataVel.csv Finish");
 }
 
-int main(){
+int main(int argc, char* argv[]){
+    int num_threads = 16;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
+            num_threads = std::stoi(argv[i + 1]);
+            ++i; // skip next argument
+        }
+        else cout << "redundant argument: " << argv[i] << endl;
+    }
+    if(num_threads<=1)num_threads=2;
     std::vector<std::thread> threads;
-    threads.emplace_back(TaskParam);
+    threads.emplace_back(TaskParam, num_threads-1);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
@@ -127,8 +136,10 @@ int main(){
         file.close();
     }
     TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
-    threads.emplace_back(TaskData, "train", traffics);
-    threads.emplace_back(TaskData, "valid", traffics);
+    TaskData("train", traffics);
+    TaskData("valid", traffics);
+    //threads.emplace_back(TaskData, "train", traffics);
+    //threads.emplace_back(TaskData, "valid", traffics);
 
     for(auto &i:threads)i.join();
     return 0;

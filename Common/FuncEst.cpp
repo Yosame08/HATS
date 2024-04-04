@@ -160,7 +160,7 @@ void FunctionFit::FindParam(int id){
     safe_cout(str.str());
 }
 
-void FunctionFit::FitParam(){
+void FunctionFit::FitParam(int threads){
     ThreadPool pool(15);
     for(int i=0;i<times.size();++i){
         loss[i] = 1e308;
