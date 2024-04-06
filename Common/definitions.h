@@ -1,10 +1,10 @@
 #ifndef MYDEFINES_H
 #define MYDEFINES_H
 
-#define EDGEFILE "../../Map/edgeOSM.txt"
-#define TYPEFILE "../../Map/wayTypeOSM.txt"
-#define TRACEFILE "../../test_sampled.txt"
-#define ROADVECTOR "../../Intermediate/road_vectors.txt"
+#define EDGEFILE "../Map/edgeOSM.txt"
+#define TYPEFILE "../Map/wayTypeOSM.txt"
+#define TRACEFILE "../test_sampled.txt"
+#define ROADVECTOR "../Intermediate/road_vectors.txt"
 #define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
 #define PATH_NUM 65536
 #define TIMEZONE 0
@@ -16,9 +16,9 @@
 
 // Macros for [FuncEst.h/cpp] to fit parameters
 #define granularity 2
-#define PARAMTURN "../../Intermediate/ParamTurn.txt"
-#define PARAMLENPOS "../../Intermediate/ParamLenPos.txt"
-#define PARAMLENNEG "../../Intermediate/ParamLenNeg.txt"
+#define PARAMTURN "../Intermediate/ParamTurn.txt"
+#define PARAMLENPOS "../Intermediate/ParamLenPos.txt"
+#define PARAMLENNEG "../Intermediate/ParamLenNeg.txt"
 #define mxMissing 25 // maximum number of consecutive missing records in the trajectory
 #define minProb 1e-150 // minProb^2 doesn't exceed double
 

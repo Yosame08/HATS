@@ -3,20 +3,12 @@
 #include "maths.h"
 #include <cmath>
 #include <iostream>
-#include <fstream>
 #include <queue>
 using namespace std;
 
 extern Road roads[];
 extern GridType inGrid;
 
-double readSigZ(){
-    ifstream in("../../Intermediate/SIGZ.txt");
-    double i;
-    in>>i;
-    return i;
-}
-double loadSigZ = readSigZ();
 double PtMatchProb(double dist){
     static const double coefficient = 1 / (SIGZ * sqrt(M_PI * 2));
     double param = dist / SIGZ;

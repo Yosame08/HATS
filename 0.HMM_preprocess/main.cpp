@@ -1,6 +1,6 @@
 #include "definitions.h"
 #undef TRACEFILE
-#define TRACEFILE ("../../"+mode+"_input.txt")
+#define TRACEFILE ("../"+mode+"_input.txt")
 
 #include "structs.h"
 #include "reads.h"
@@ -301,15 +301,15 @@ int main(int argc, char* argv[]) {
 
     clog<<"Output..."<<endl;
 
-    ofstream match("../../Intermediate/"+mode+"_full_matched.txt");
+    ofstream match("../Intermediate/"+mode+"_full_matched.txt");
     match<<m<<'\n';
     for(int i=0;i<m;++i)match<<fullStream[i].str();
 
-    ofstream cross("../../Intermediate/"+mode+"_traffic_data.csv");
+    ofstream cross("../Intermediate/"+mode+"_traffic_data.csv");
     cross<<"traj_id,original_path_id,transition_path_id,hour,sec,distance,elapsed\n";
     for(int i=0;i<m;++i)cross<<crossStream[i].str();
 
-    ofstream turnCount("../../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../../Intermediate/"+mode+"_difDist_cnt.txt");
+    ofstream turnCount("../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../Intermediate/"+mode+"_difDist_cnt.txt");
     turnCount<<fixed<<setprecision(1);
     difDistCount<<fixed<<setprecision(1);
     for(int j=4;j<=24;++j){

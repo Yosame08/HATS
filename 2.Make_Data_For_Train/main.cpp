@@ -17,19 +17,19 @@ vector<string> header;
 
 void TaskParam(int threads){
     FunctionFit turn;
-    turn.ReadStat("../../Intermediate/train_turn_cnt.txt", false);
+    turn.ReadStat("../Intermediate/train_turn_cnt.txt", false);
     turn.FitParam(threads);
     turn.Output(PARAMTURN);
     cout<<"[Fit Parameters] Turn: Finish"<<endl;
 
     FunctionFit lenPos;
-    lenPos.ReadStat("../../Intermediate/train_difDist_cnt.txt", false);
+    lenPos.ReadStat("../Intermediate/train_difDist_cnt.txt", false);
     lenPos.FitParam(threads);
     lenPos.Output(PARAMLENPOS);
     cout<<"[Fit Parameters] Length(Positive): Finish"<<endl;
 
     FunctionFit lenNeg;
-    lenNeg.ReadStat("../../Intermediate/train_difDist_cnt.txt", true);
+    lenNeg.ReadStat("../Intermediate/train_difDist_cnt.txt", true);
     lenNeg.FitParam(threads);
     lenNeg.Output(PARAMLENNEG);
     cout<<"[Fit Parameters] Length(Negative): Finish"<<endl;
@@ -42,7 +42,7 @@ struct Info{
 };
 
 void TaskData(const string &mode, const TrafficHandler& traffics){
-    CSVFile rawTraffic("../../Intermediate/"+mode+"_traffic_data.csv");
+    CSVFile rawTraffic("../Intermediate/"+mode+"_traffic_data.csv");
     safe_clog(mode+" read finish");
     CSVFile dataVel(header);
     vector<pair<int,float>>lasting;
@@ -100,7 +100,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
                                  traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode),
                                  CycleTime(info[i].timestamp), passed/lasting[info[i].trajID].second,  vel); // (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first
     }
-    dataVel.saveTo("../../Intermediate/data_vel_"+mode+".csv");
+    dataVel.saveTo("../Intermediate/data_vel_"+mode+".csv");
     safe_clog("Write DataVel.csv Finish");
 }
 
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]){
     header.insert(header.end(),addHeader.begin(),addHeader.end());
     safe_clog("Start to read files");
     {
-        ifstream file("../../Intermediate/road_vectors.txt");
+        ifstream file("../Intermediate/road_vectors.txt");
         int num_roads;
         file >> num_roads;
         for (int i = 0; i <= num_roads; ++i) {
@@ -135,7 +135,7 @@ int main(int argc, char* argv[]){
         }
         file.close();
     }
-    TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
+    TrafficHandler traffics("../Intermediate/train_traffic_data.csv");
     TaskData("train", traffics);
     TaskData("valid", traffics);
     //threads.emplace_back(TaskData, "train", traffics);
