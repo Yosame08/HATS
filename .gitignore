@@ -9,4 +9,6 @@ __pycache__/
 *.pt
 *.pth
 *.html
-!Map/
+!edgeOSM.txt
+!nodeOSM.txt
+!wayTypeOSM.txt
