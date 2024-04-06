@@ -28,6 +28,7 @@ import torch
 import os
 import subprocess
 import argparse
+from datetime import datetime
 
 file_train = 'train_input.txt'
 file_valid = 'valid_input.txt'
@@ -118,7 +119,10 @@ if __name__ == "__main__":
     num_train = stat_num(file_train)
     num_valid = stat_num(file_valid)
     num_test = stat_num(file_test)
-
+    
+    # Get the current date and time
+    now = datetime.now()
+    date_string = now.strftime("%Y%m%d_%H%M%S")
 
     # Step 1: Run HMM for preprocess
     print("Step 1/5: Running HMM for preprocessing at high precision trajectories")
@@ -139,8 +143,8 @@ if __name__ == "__main__":
 
     # Step 5: Recover traces by HMM and models
     print("Step 5/5: Recover trajectories by LSHMM and models")
-    exec_cmd_in('4.HMM_final', f'./HMM_final -th {args.threads}')
+    exec_cmd_in('4.HMM_final', f'./HMM_final -th {args.threads} -fn {date_string}')
     
     # Rate the recovery results
     print("Rating")
-    exec_cmd_in('Tool_Shortest_Path', './Tool_Shortest_Path')
+    exec_cmd_in('Tool_Shortest_Path', './Tool_Shortest_Path -fn {date_string}')
