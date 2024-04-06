@@ -9,12 +9,14 @@ modify before running:
     	change this macro to the time zone of the region to which the trajectories corresponds
     Common/definitions.h:16 RECOVER_INTERVAL
         change this macro to the time interval you want to recover
-    0.HMM_preprocess/CMakeLists.txt
-    2.Make_Data_For_Train/CMakeLists.txt
-    4.HMM_final/CMakeLists.txt
-    Tool_Rating_New/CMakeLists.txt
-    Tool_Shortest_Path/CMakeLists.txt
+    0.HMM_preprocess/CMakeLists.txt:1
+    2.Make_Data_For_Train/CMakeLists.txt:1
+    4.HMM_final/CMakeLists.txt:1
+    Tool_Rating_New/CMakeLists.txt:1
+    Tool_Shortest_Path/CMakeLists.txt:1
         change cmake_minimum_required version to your cmake version
+    4.HMM_final/CMakeLists.txt:11
+        change to your torchlib installation directory
 parameters to be specified to run the script:
     --threads x
         Use x threads for cpp programs. This argument doesn't affect torch.
@@ -59,6 +61,8 @@ def exec_cmd(command):
         rc = process.poll()
         if rc != None:
             print(f"Command returns {rc}")
+            if rc != 0:
+                raise RuntimeError("命令执行失败")
             return rc
 
 
@@ -71,7 +75,7 @@ def exec_cmd_in(directory, command):
         print(f"[Execute] {command}")
         rc = exec_cmd(command)
     except subprocess.CalledProcessError as e:
-        print(f"命令执行失败，错误信息：{e}")
+        print(f"命令执行失败")
         # switch to the original working directory
         os.chdir(current_dir)
         # throw an error
