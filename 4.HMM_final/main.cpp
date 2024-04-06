@@ -385,14 +385,21 @@ void process(int start, int end){
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
-    //m=5000;
-    const int num_threads = 16;
+
+    int num_threads = 16; // default value
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
+            num_threads = std::stoi(argv[i + 1]);
+            if(num_threads<1)num_threads=1;
+            ++i; // skip next argument
+        else cout << "redundant argument: " << argv[i] << endl;
+    }
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);
     for (int i = 0; i < num_threads; ++i) {
