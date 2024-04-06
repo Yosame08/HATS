@@ -7,6 +7,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Os -pthread")
 
 set(COMMON_DIR "../Common")
 include_directories(${COMMON_DIR})
+
+set(Torch_DIR /home/yosame/libtorch/share/cmake/Torch)
 find_package(Torch REQUIRED)
 
 add_executable(HMM_final main.cpp predict.cpp
