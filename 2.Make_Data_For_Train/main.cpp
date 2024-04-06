@@ -43,7 +43,7 @@ struct Info{
 
 void TaskData(const string &mode, const TrafficHandler& traffics){
     CSVFile rawTraffic("../Intermediate/"+mode+"_traffic_data.csv");
-    safe_clog(mode+" read finish");
+    safe_cout(mode+" read finish");
     CSVFile dataVel(header);
     vector<pair<int,float>>lasting;
     vector<Info>info;
@@ -76,7 +76,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
     }
     while(lasting.size()<rawTraffic.back()["traj_id"])lasting.emplace_back(0,0);
     lasting.emplace_back(totTM,jLen);
-    safe_clog(mode+" preprocess finish");
+    safe_cout(mode+" preprocess finish");
     vector<double>newLine;
     newLine.reserve(vec_len+addHeader.size());
     float passed = 0;
@@ -101,7 +101,7 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
                                  CycleTime(info[i].timestamp), passed/lasting[info[i].trajID].second,  vel); // (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first
     }
     dataVel.saveTo("../Intermediate/data_vel_"+mode+".csv");
-    safe_clog("Write DataVel.csv Finish");
+    safe_cout("Write DataVel.csv Finish");
 }
 
 int main(int argc, char* argv[]){
@@ -120,7 +120,7 @@ int main(int argc, char* argv[]){
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
     header.insert(header.end(),addHeader.begin(),addHeader.end());
-    safe_clog("Start to read files");
+    safe_cout("Start to read files");
     {
         ifstream file("../Intermediate/road_vectors.txt");
         int num_roads;

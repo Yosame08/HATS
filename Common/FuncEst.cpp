@@ -41,7 +41,7 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
             sort(ins.begin(),ins.end());
             int accept = ins.size() * 0.999;
             sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
-            clog<<"[FunctionFit] Time = "<<times.back()<<", Origin max: "<<ins.back()<<", 99.9% max: "<<ins[accept-1]<<endl;
+            safe_cout("[FunctionFit] Time = "+to_string(times.back())+", Origin max: "+to_string(ins.back())+", 99.9% max: "+to_string(ins[accept-1]));
             upLim[tot] = ins[accept-1]+1;
             stat[tot].reserve(upLim[tot]+1);
             for(int i=0;i<=upLim[tot];++i)stat[tot][i]=0;
@@ -137,7 +137,7 @@ void FunctionFit::FindParam(int id){
     params[id][S1] = 0.5;
     params[id][sig2] = (sigMul3[id]-midVal[id]) / 3;
     params[id][mu2] = midVal[id];
-    safe_clog(to_string(id)+" initial params: "+to_string(params[id][0])+" "+to_string(params[id][1])
+    safe_cout(to_string(id)+" initial params: "+to_string(params[id][0])+" "+to_string(params[id][1])
     +" "+to_string(params[id][2])+" "+to_string(params[id][3]));
     for(int i=0;i<Size;++i)step[i] = params[id][i]/width;
 
@@ -217,8 +217,8 @@ void FunctionFit::LoadParam(const std::string& filename){
         }
     }
 
-    clog<<"Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):"<<endl;
-    clog<<Estimate_wrap(10,8)<<' '<<Estimate_wrap(100,12)<<' '<<Estimate_wrap(1000,16)<<endl;
+    safe_cout("Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):");
+    safe_cout(to_string(Estimate_wrap(10,8))+" "+to_string(Estimate_wrap(100,12))+" "+to_string(Estimate_wrap(1000,16)));
 }
 
 double FunctionFit::Estimate_wrap(double val, int id) const{

@@ -1,4 +1,5 @@
 #include "traffic.h"
+#include "funcIO.h"
 #include <fstream>
 #include <iostream>
 #include <sstream>
@@ -30,7 +31,7 @@ void TrafficHandler::addInterval(int id, int to, int l, int r, short val) {
 }
 
 void TrafficHandler::init(const char* filename) {
-    clog<<"Reading traffic data"<<endl;
+    safe_cout("Reading traffic data");
     ifstream dataFile(filename);
     string inHead;
     getline(dataFile,inHead);
@@ -39,7 +40,7 @@ void TrafficHandler::init(const char* filename) {
     bool stopped=false;
     while(getline(dataFile, line)){
         static int cnt=0;
-        if(++cnt%1048576==0)clog<<'\r'<<cnt/1048576<<"M Traffic lines";
+        if(++cnt%1048576==0)safe_cout_origin("\r"+to_string(cnt/1048576)+"M Traffic lines");
         std::stringstream ss(line);
         string field;
         double in[7];
@@ -87,9 +88,9 @@ void TrafficHandler::init(const char* filename) {
         if(fromID>=lim)lim=fromID+1;
         last={id,fromID,toID,stamp,passed,in[distance]};
     }
-    clog<<"\nPreprocessing..."<<endl;
+    safe_cout("\nPreprocessing...");
     for(int i=0;i<=PATH_NUM;++i)for(auto x:lights[i])x.second->stat();
-    clog<<"File read finish"<<endl;
+    safe_cout("File read finish");
 }
 
 double Normal(double x){

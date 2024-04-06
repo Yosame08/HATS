@@ -15,3 +15,7 @@ void safe_cerr(const string& message){
     lock_guard<mutex> lock(cerr_mtx);
     cerr << message << endl;
 }
+void safe_cout_origin(const string& message){
+    lock_guard<mutex> lock(cout_mtx);
+    cout << message;
+}

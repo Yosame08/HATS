@@ -151,7 +151,7 @@ void solve(int id){
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
-        safe_clog(string("Can't Match point to road at path id ")+ to_string(id) +string(" due to ")+cause);
+        safe_cout(string("Can't Match point to road at path id ")+ to_string(id) +string(" due to ")+cause);
         return false;
     };
     auto beginTM = clock();
@@ -212,7 +212,7 @@ void solve(int id){
             if(maxNode.prob>0)search.push_back(maxNode);
         }
         if(search.size()-1==oldEnd){ // HMM break
-            safe_clog(string("HMM break at PATH ")+ to_string(id) + string(" trace ")+ to_string(i));
+            safe_cout(string("HMM break at PATH ")+ to_string(id) + string(" trace ")+ to_string(i));
             int mxPoint=0;double mxProb=-1;
             for (int k = oldBegin; k <= oldEnd; ++k)if(search[k].prob > mxProb)mxProb=search[k].prob, mxPoint=k;
             for(auto &now:found)
@@ -420,7 +420,7 @@ int main(int argc, char* argv[]) {
     }
     progress_thread.join();
 
-    clog<<"Output..."<<endl;
+    cout<<"Output..."<<endl;
     ofstream recovery("../RecoveryHistory/"+recovFN+"_Recovery.txt");
     recovery<<fixed<<setprecision(10);
     for(int i=0;i<m;++i)recovery<<recovStream[i].str();
@@ -434,7 +434,7 @@ int main(int argc, char* argv[]) {
 }
 
 void ReadVectors(){
-    clog<<"Reading Embedded Road Vectors..."<<endl;
+    cout<<"Reading Embedded Road Vectors..."<<endl;
     ifstream file(ROADVECTOR);
     int num_roads;
     file >> num_roads;
