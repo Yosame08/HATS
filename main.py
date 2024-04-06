@@ -56,8 +56,10 @@ def exec_cmd(command):
             break
         if output:
             print(str(output.strip(), 'utf-8'))
-    rc = process.poll()
-    return rc
+        rc = process.poll()
+        if rc != None:
+            print(f"Command returns {rc}")
+            return rc
 
 
 def exec_cmd_in(directory, command):
