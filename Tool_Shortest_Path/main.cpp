@@ -90,8 +90,6 @@ void process(int start, int end){
         for(int i=1;i<paths.size();++i){
             if(paths[i]==last)continue;
             auto &connect = g.node[roads[last].to];
-            //clog<<i<<": "<<last<<"->"<<paths[i]<<endl;
-            //assert(std::find(connect.begin(), connect.end(),paths[i]) != connect.end());
             matchStream[j]<<paths[i]<<' ';
             last = paths[i];
         }
@@ -102,7 +100,7 @@ int main(){
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
-    ReadTracesWithRoad("RN_recovery.txt", m, traces);
+    ReadTracesWithRoad("RN_Recovery.txt", m, traces);
 
     const int num_threads = 16;
     int chunk_size = (m + num_threads - 1) / num_threads;
@@ -118,7 +116,7 @@ int main(){
     }
     progress_thread.join();
 
-    ofstream out("Full_Matched_Dij.txt");
+    ofstream out("RN_Full.txt");
     out<<m<<'\n';
     for(int i=0;i<m;++i)out<<matchStream[i].str()<<'\n';
     return 0;

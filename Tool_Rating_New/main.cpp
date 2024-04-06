@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <iomanip>
+#include <cstring>
 using namespace std;
 
 G g;
@@ -71,14 +72,24 @@ float DistRN(int fromID, int toID, float toNodeA, float fromNodeB){
     return 1e38;
 }
 
-int main(){
+int main(int argc, char* argv[]){
     ios::sync_with_stdio(false);
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
-    ReadTracesWithRoad("../../test_output.txt", m, traceSTD);
-    ifstream fullSTD("Full_Matched_STD.txt");
-    ReadTracesWithRoad("../../RecoveryHistory/4.2 50.txt", m, traceOut);
-    ifstream fullOUT("../../RecoveryHistory/4.2Full50.txt");
+
+    string recovFN = "recovery"; // default value
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "-fn") == 0 && i + 1 < argc) {
+            recovFN = argv[i + 1];
+            ++i; // skip next argument
+        }
+        else cout << "redundant argument: " << argv[i] << endl;
+    }
+
+    ReadTracesWithRoad("../test_output.txt", m, traceSTD);
+    ifstream fullSTD("../test_full_output.txt");
+    ReadTracesWithRoad("../RecoveryHistory/"+recovFN+"_Recovery.txt", m, traceOut);
+    ifstream fullOUT("../RecoveryHistory/"+recovFN+"_Full.txt");
     int m1,m2;
     fullOUT >> m1, fullOUT.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     fullSTD >> m2, fullSTD.ignore(std::numeric_limits<std::streamsize>::max(), '\n');

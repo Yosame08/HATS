@@ -15,6 +15,7 @@
 #include <unordered_set>
 #include <map>
 #include <cassert>
+#include <cstring>
 using namespace std;
 
 FunctionFit parTurn(PARAMTURN), parLenPos(PARAMLENPOS), parLenNeg(PARAMLENNEG);
@@ -393,11 +394,17 @@ int main(int argc, char* argv[]) {
     ReadVectors();
 
     int num_threads = 16; // default value
+    string recovFN = "recovery";
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
             num_threads = std::stoi(argv[i + 1]);
-            if(num_threads<1)num_threads=1;
+            if (num_threads < 1)num_threads = 1;
             ++i; // skip next argument
+        }
+        else if (strcmp(argv[i], "-fn") == 0 && i + 1 < argc) {
+            recovFN = argv[i + 1];
+            ++i; // skip next argument
+        }
         else cout << "redundant argument: " << argv[i] << endl;
     }
     int chunk_size = (m + num_threads - 1) / num_threads;
@@ -414,12 +421,12 @@ int main(int argc, char* argv[]) {
     progress_thread.join();
 
     clog<<"Output..."<<endl;
-    ofstream recovery("Recovery.txt");
+    ofstream recovery("../RecoveryHistory/"+recovFN+"_Recovery.txt");
     recovery<<fixed<<setprecision(10);
     for(int i=0;i<m;++i)recovery<<recovStream[i].str();
     recovery.close();
 
-    ofstream full("Full_Matched_Final.txt");
+    ofstream full("../RecoveryHistory/"+recovFN+"_Full.txt");
     full<<m<<'\n';
     for(int i=0;i<m;++i)full<<matchStream[i].str();
     full.close();
