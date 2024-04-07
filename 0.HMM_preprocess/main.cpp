@@ -4,6 +4,7 @@
 
 #include "structs.h"
 #include "reads.h"
+#include "funcIO.h"
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -39,7 +40,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
     seqPath.push_back({{fromRoad, lastTr.timestamp, toNodeDistA}, -1});
     q.push(QInfo{1, 0, toNodeDistA, greatCircle, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
     if(q.top().angle<0)
-        cout<<"(Bug) angle less than 0 [step 0: main.cpp]";
+        safe_cout("(Bug) angle less than 0 [step 0: main.cpp]");
     assert(q.top().angle>=0);
     SearchRes result{-1};
 

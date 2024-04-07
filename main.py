@@ -148,3 +148,5 @@ if __name__ == "__main__":
     # Rate the recovery results
     print("Rating")
     exec_cmd_in('Tool_Shortest_Path', './Tool_Shortest_Path -fn {date_string}')
+    
+    print("Task Finish")
