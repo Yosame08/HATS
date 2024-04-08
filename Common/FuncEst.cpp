@@ -105,7 +105,7 @@ void FunctionFit::EstiUpdate(int id, const double param[]){
     }
 }
 
-const int width = 16;
+const int width = 12;
 void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
     auto &cacheArr = cache[id];
     for(double v1=ori[0]-step[0]*width; v1<=ori[0]+step[0]*width; v1+=step[0]) {
@@ -161,7 +161,7 @@ void FunctionFit::FindParam(int id){
 }
 
 void FunctionFit::FitParam(int threads){
-    ThreadPool pool(15);
+    ThreadPool pool(threads);
     for(int i=0;i<times.size();++i){
         loss[i] = 1e308;
         pool.enqueue([i, this](){ FindParam(i); }); // 将任务添加到线程池
