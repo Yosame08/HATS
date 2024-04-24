@@ -132,7 +132,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) * AngleProb(angle, span), seqSize++}); //
         }
     }
-    // 搜索结束
+    // search end
     if(result.prob * accuProb <= maxProb)return {result.prob,-1}; // Search Failed
     result.path = new Path();
     stack<int>choose;
@@ -393,7 +393,7 @@ int main(int argc, char* argv[]) {
     ReadTraces(TRACEFILE, m, traces, true, false);
     ReadVectors();
 
-    int num_threads = 16; // default value
+    int num_threads = 8; // default value
     string recovFN = "recovery";
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {

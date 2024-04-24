@@ -268,12 +268,7 @@ void process(int start, int end, int thread){
 
 int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
-    ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
-    int m;
-    ReadTraces(TRACEFILE, m, traces, true);
-    cout<<"Read "<<m<<" trajectories"<<endl;
-
-    int num_threads = 16; // default value
+    int num_threads = 8; // default value
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
             num_threads = std::stoi(argv[i + 1]);
@@ -286,6 +281,11 @@ int main(int argc, char* argv[]) {
         }
         else cout << "redundant argument: " << argv[i] << endl;
     }
+    
+    ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
+    int m;
+    ReadTraces(TRACEFILE, m, traces, true);
+    cout<<"Read "<<m<<" trajectories"<<endl;
 
     int chunk_size = (m + num_threads - 1) / num_threads;
     std::vector<std::thread> threads(num_threads);

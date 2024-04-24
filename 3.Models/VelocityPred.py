@@ -96,6 +96,8 @@ for times in range(5):
             if last_3_min_loss >= 0.99 * last_4_to_6_min_loss:
                 print(f"Early stop {times}")
                 break
+        
+        scheduler.step()
 
 model = model.to(torch.device("cpu"))  # 保存为CPU上的模型，HMM中使用CPU跑小数据
 # 保存模型

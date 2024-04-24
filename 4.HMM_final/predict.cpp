@@ -10,8 +10,8 @@ using std::pair;
 using std::cout;
 using std::endl;
 
-torch::jit::Module moduleVel = torch::jit::load("../../Intermediate/model_vel.pt");
-TrafficHandler traffics("../../Intermediate/train_traffic_data.csv");
+torch::jit::Module moduleVel = torch::jit::load("../Intermediate/model_vel.pt");
+TrafficHandler traffics("../Intermediate/train_traffic_data.csv");
 
 extern vector<float> road_vectors[PATH_NUM];
 float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp, float percent){
