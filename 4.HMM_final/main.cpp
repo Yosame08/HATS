@@ -106,7 +106,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             // Found the destination
             if(to==toRoad){
                 float allLen = lastInfo.len + fromNodeDistB;
-                if(allLen >= float(span) * 40)continue;
+                if(allLen >= float(span) * 50)continue;
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
                 assert(allLen - greatCircle==allLen - greatCircle);
                 double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span); //
@@ -120,12 +120,12 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             float totLen = lastInfo.len + RoadLen(to);
             angle += FindAngle(to,0);
             // 检查应该入队还是被剪枝
-            // 各种剪枝：最多执行span/3步，也就是最快允许平均每3秒换一条路段
-            if(lastInfo.level > span/3)continue;
-            // span/4步后，比起点前更靠近目的地（直线）
-            if(lastInfo.level > span/4 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
+            // 各种剪枝：最多执行span/2步，也就是最快允许平均每3秒换一条路段
+            if(lastInfo.level > span/2)continue;
+            // span/3步后，比起点前更靠近目的地（直线）
+            if(lastInfo.level > span/3 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
             // 车速极快
-            if(totLen >= float(span) * 40)continue;
+            if(totLen >= float(span) * 50)continue;
             // 通过剪枝，入队
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode, lastInfo.level+1, totLen, angle});
