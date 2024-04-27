@@ -40,7 +40,7 @@ void FindRoad(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
     }
 }
 
-void FindRoadMulti(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found){
+void FindRoadMulti(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found, bool loose=false){
     unordered_map<int,priority_queue<pair<double,float>>> tmp;
     int gridX= int(p.lat / GRIDSIZE), gridY= int(p.lon / GRIDSIZE);
     bool ok = false;
@@ -62,7 +62,7 @@ void FindRoadMulti(int dFrom, int dTo, const PointLL &p, vector<Candidate>&found
         double high=f.second.top().first;
         while(!f.second.empty()){
             auto &t=f.second.top();
-            if(t.first/high>=1e-2)found.push_back({f.first, t.second, t.first});
+            if(t.first/high>=(loose?1e-4:1e-2))found.push_back({f.first, t.second, t.first});
             else break;
             f.second.pop();
         }

@@ -6,11 +6,7 @@ struct PointLL;
 struct Line;
 struct Vector;
 
-// 定义地球半径（单位：千米）
 const double EARTH_RADIUS = 6371.0;
-// 定义地图原点（地球转平面直角坐标系的原点）
-// const double lat_origin = 31, lon_origin = 121;
-// const double lat_origin = 41.15, lon_origin = -8.61;
 
 double deg2rad(double);
 double greatCircleDistance(double, double, double, double);

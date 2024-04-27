@@ -1,8 +1,8 @@
 #ifndef MYDEFINES_H
 #define MYDEFINES_H
 
-#define EDGEFILE "../Map/edgeOSM.txt"
-#define TYPEFILE "../Map/wayTypeOSM.txt"
+#define EDGEFILE "../Map/edgeOSM_Shanghai.txt"
+#define TYPEFILE "../Map/wayTypeOSM_Shanghai.txt"
 #define TRACEFILE "../test_sampled.txt"
 #define ROADVECTOR "../Intermediate/road_vectors.txt"
 #define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
@@ -34,7 +34,7 @@ using GridType = std::unordered_map<int,std::unordered_map<int,std::vector<GridI
 
 double PtMatchProb(double dist);
 void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found);
-void FindRoadMulti(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found);
+void FindRoadMulti(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found, bool loose);
 /*
  * Find out the total degrees of turning from the starting point of the segment
  */

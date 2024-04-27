@@ -2,8 +2,8 @@ import folium
 from folium.plugins import MarkerCluster
 from file import *
 
-mapfile = 'edgeOSM_Porto.txt'
-generateM = 'porto_roads_full.html'
+mapfile = '../Map/edgeOSM_Shanghai.txt'
+generateM = 'shanghai_roads_full.html'
 
 specify = False
 indexes = [0]
@@ -20,7 +20,7 @@ def TrackToLayer(tracks: list[Anchors]) -> list[dict]:
 
 # Set up the map centered on Shanghai
 print("STEP 0: Creating Map")
-map = folium.Map(location=[41.15, -8.6], zoom_start=15)
+map = folium.Map(location=[31.26, 121.55], zoom_start=15)
 roadnet = RoadNet()
 
 if len(mapfile) > 0:
