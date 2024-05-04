@@ -3,6 +3,7 @@
 
 #include "definitions.h"
 #include <unordered_map>
+#include <bitset>
 class TrafficHandler{
 private:
     struct Last{
@@ -11,7 +12,7 @@ private:
     };
     struct Traffic{
         short score[86402]{};
-        //short cyclePred[24]{};
+        std::bitset<86402> cross;
         int cnt=0;
         double percent=0;
         void stat();
