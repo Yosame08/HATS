@@ -61,12 +61,10 @@ void TrafficHandler::init(const char* filename) {
             if(fromID!=last.from){
                 stopped=false;
                 double vel=last.dist/last.elapsed; // must be at the beginning of new road
-                if(vel > 2)
-                    addInterval(last.from,last.to,last.stamp - bias + last.elapsed/2, stamp,1);
-                else{ // stop -> start
+                if(vel < 2){ // stop -> start
                     addInterval(last.from,last.to,last.stamp - bias,last.stamp - bias + last.elapsed/2,-1);
-                    addInterval(last.from,last.to,last.stamp - bias + last.elapsed/2,stamp,1);
                 }
+                addInterval(last.from,last.to,last.stamp - bias + last.elapsed/2,stamp,1);
             }
             else{
                 double vel = (last.dist-in[distance])/last.elapsed;
@@ -74,7 +72,7 @@ void TrafficHandler::init(const char* filename) {
                     last={id,fromID,toID,stamp,passed,in[distance]};
                     continue; // anomaly
                 }
-                if(in[distance]<100){ // approaching crossing
+                if(in[distance]<200){ // approaching crossing
                     int correction = in[distance]/5*2;
                     if(vel <= 2){ // when vehicle stops
                         stopped=true;
@@ -109,7 +107,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
     const auto &scoreArr = lights[roadID].at(toID)->score;
     const auto check = [&](int stamp){
         double result = 0;
-        for(int bias=0;bias<=5;++bias){
+        for(int bias=0;bias<=10;++bias){
             int l = stamp - bias, r = stamp + bias;
             revise(l), revise(r);
             double factor = Normal(bias);
@@ -120,14 +118,14 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
     };
     double accu=check(timestamp);
     int pastCross=-1, futureCross=-1;
-    for(int i=timestamp,cnt=0;cnt<=240;++cnt,--i){
+    for(int i=timestamp-1,cnt=0;cnt<300;++cnt,--i){
         revise(i);
         if(lights[roadID].at(toID)->cross[i]){
             pastCross=i;
             break;
         }
     }
-    for(int i=timestamp,cnt=0;cnt<=240;++cnt,++i){
+    for(int i=timestamp+1,cnt=0;cnt<300;++cnt,++i){
         revise(i);
         if(lights[roadID].at(toID)->cross[i]){
             futureCross=i;
@@ -138,7 +136,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
         int cycle = (futureCross-pastCross+86400)%86400;
         int past=timestamp-cycle, future=timestamp+cycle;
         revise(past), revise(future);
-        accu += check(past) * 0.5 + check(future) * 0.5;
+        accu += check(past) * 0.25 + check(future) * 0.25;
     }
     double result = 1/(1+exp(-accu));
     return result == 0.5 ? lights[roadID].at(toID)->percent : result;
@@ -151,9 +149,9 @@ void TrafficHandler::Traffic::stat() {
         score[i]=accu;
     }
     for(int i=0;i<=86400;++i){
-        int past = i-1, future = i+1, future2 = i+2;
-        revise(past), revise(future), revise(future2);
-        if( (score[future]&score[i])>>31 && !((score[past]&score[i])>>31 && !(score[future2]&score[future])>>31) ){
+        int past = i-1, future = i+1;
+        revise(past), revise(future);
+        if( score[past] && score[future] && ((score[past]^score[future])>>31) ){
             cross[i]=true;
         }
     }

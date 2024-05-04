@@ -29,7 +29,7 @@ print("Preparing dataset...")
 # 创建数据加载器
 batch_size = 8192  # 你可以根据需要调整这个值
 train_data = TensorDataset(X_train, y_train)
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=16)
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=15)
 
 input_size = X_train.shape[1]
 output_size = 1
@@ -49,12 +49,15 @@ print("Start training...")
 valid_losses = []
 best_loss = float('inf')  # 初始化最小损失为无穷大
 best_model = None  # 初始化最佳模型
+
+step_mul = 0.8
+
 # 训练模型
 for times in range(5):
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-6)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.9)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3*(step_mul**times), weight_decay=1e-6)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=step_mul)
     for epoch in range(100):  # 请根据你的需求调整迭代次数
         startTM = time.time()
         model.train()
@@ -90,10 +93,10 @@ for times in range(5):
             best_loss = loss_valid.item()
             best_model = model.state_dict()  # 保存当前最佳模型
         # 检查最近3个epoch的最低验证损失和最近4到6个epoch的最低验证损失
-        if epoch >= 6:
-            last_3_min_loss = min(valid_losses[-3:])
-            last_4_to_6_min_loss = min(valid_losses[-6:-3])
-            if last_3_min_loss >= 0.99 * last_4_to_6_min_loss:
+        if epoch >= 8:
+            last_4_min_loss = min(valid_losses[-4:])
+            last_5_to_8_min_loss = min(valid_losses[-8:-4])
+            if last_4_min_loss >= 0.99 * last_5_to_8_min_loss:
                 print(f"Early stop {times}")
                 break
         
