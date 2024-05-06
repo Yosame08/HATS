@@ -18,6 +18,8 @@
 #include <cstring>
 using namespace std;
 
+double sigz;
+float roadSpeed[7];
 FunctionFit parTurn(PARAMTURN), parLenPos(PARAMLENPOS), parLenNeg(PARAMLENNEG);
 G g;
 Road roads[PATH_NUM];
@@ -67,24 +69,27 @@ double SearchDifDistProb(double dif, int time) {
     return DifDistProb(dif, time);
 }
 
+double MedianSpeedProb(float len, float estTime){
+    static const float maxSpeed = *max_element(roadSpeed, roadSpeed+7);
+    float mini = len / maxSpeed;
+    return mini / estTime; // Relative probability is ensured - double time, half probability
+}
+
 SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &lastTr, const Trace &nowTr, double accuProb, double maxProb){
     const int &fromRoad = old.roadID, &toRoad = now.roadID;
     const float &toNodeDistA = old.toNodeDist, fromNodeDistB = RoadLen(toRoad) - now.toNodeDist;
     // seqPath is to restore nodes searched. Every node restore information about current road and which node is previous road
     vector<QueueInfo2>seqPath;
-    //seqPath.reserve(4096);
     // Use DP to simplify searching process, which is like Dijkstra but use "probability" as the key
-    //bitset<PATH_NUM+1>vis; //bool vis[PATH_NUM+1]{};
     BitInt vis;
     priority_queue<QueueInfo>q;
     // Initialize some const Value to prune search tree
     const auto greatCircle = (float)lastTr.p.dist(nowTr.p);
-    //assert(greatCircle==greatCircle);
     const int span = int(nowTr.timestamp - lastTr.timestamp);
     int seqSize = 1;
     // Set starting state
     seqPath.push_back({PathNode{fromRoad, lastTr.timestamp, toNodeDistA}, -1, 0,
-                       toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA)});
+                       toNodeDistA, FindAngle(fromRoad,0)-FindAngle(fromRoad,toNodeDistA), toNodeDistA/roadSpeed[roads[fromRoad].level]});
     q.push(QueueInfo{1, 0});
     SearchRes result{-1,0,0,0, nullptr};
 
@@ -102,14 +107,25 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
         int node = roads[atRoad].to;
         for(const auto &to:g.node[node]){
             if(vis.chk(to))continue;
-            float angle = lastInfo.angle + (float)GetTurnAngle(atRoad, to);
+
+            float angle = lastInfo.angle;
+            if(RoadLen(to)>=10){
+                int angleNode = lastNode;
+                for(;angleNode>=0 && RoadLen(seqPath[angleNode].pNode.roadID)<10; angleNode = seqPath[angleNode].prev);
+                if(angleNode>=0){
+                    if(angleNode == lastNode)angle += GetTurnAngle(atRoad, to);
+                    else angle += DiscontinuousAngle(seqPath[angleNode].pNode.roadID, to);
+                }
+            }
+
             // Found the destination
             if(to==toRoad){
                 float allLen = lastInfo.len + fromNodeDistB;
-                if(allLen >= float(span) * 50)continue;
+                if(allLen >= float(span) * SPEEDLIM)continue;
+                float consume = fromNodeDistB / roadSpeed[roads[toRoad].level];
                 angle += FindAngle(toRoad, RoadLen(toRoad)-fromNodeDistB);
-                assert(allLen - greatCircle==allLen - greatCircle);
-                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span); //
+                double outProb = DifDistProb(allLen - greatCircle, span) * AngleProb(angle, span)
+                        * MedianSpeedProb(allLen, lastInfo.estTime+consume);
                 if(outProb > result.prob){
                     seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(toRoad)},
                                        lastNode, lastInfo.level+1, allLen, angle});
@@ -117,19 +133,20 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 }
                 continue;
             }
-            float totLen = lastInfo.len + RoadLen(to);
-            angle += FindAngle(to,0);
-            // 检查应该入队还是被剪枝
-            // 各种剪枝：最多执行span/2步，也就是最快允许平均每3秒换一条路段
+            float passLen = RoadLen(to);
+            float totLen = lastInfo.len + passLen;
+            // enqueue or be pruned
             if(lastInfo.level > span/2)continue;
-            // span/3步后，比起点前更靠近目的地（直线）
             if(lastInfo.level > span/3 && greatCircle < nowTr.p.dist(roads[to].seg.back().line.endLL))continue;
-            // 车速极快
-            if(totLen >= float(span) * 50)continue;
-            // 通过剪枝，入队
+            if(totLen >= float(span) * SPEEDLIM)continue;
+
+            angle += FindAngle(to,0);
+            float consume = lastInfo.estTime + passLen / roadSpeed[roads[to].level];
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
-                               lastNode, lastInfo.level+1, totLen, angle});
-            q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) * AngleProb(angle, span), seqSize++}); //
+                               lastNode, lastInfo.level+1, totLen, angle, consume});
+            q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) *
+                AngleProb(angle, span) *
+                MedianSpeedProb(totLen, consume), seqSize++}); //
         }
     }
     // search end
@@ -147,7 +164,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
-    //if(id>263)return;
+    //if(id<4)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -159,7 +176,7 @@ void solve(int id){
 
     // Use Viterbi Alg. to perform matching - "prob" variable in SearchNode as a key value
     vector<Candidate>found;
-    FindRoad(80, 400, traceNow[0].p, found);
+    FindRoad(80, 400, traceNow[0].p, found, sigz);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
 
     vector<SearchNode>search;
@@ -173,7 +190,7 @@ void solve(int id){
     for(int i=1;i<traceNow.size();++i){
 
         found.clear();
-        FindRoad(80, 400, traceNow[i].p, found);
+        FindRoad(80, 400, traceNow[i].p, found, sigz);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
@@ -388,6 +405,15 @@ void process(int start, int end){
 
 int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
+    ifstream param("../Intermediate/train_params.param");
+    string ignoreStr;
+    for(int i=0;i<7;++i)param>>ignoreStr>>roadSpeed[i];
+    //in case no data in training set
+    for(int i=1;i<6;++i)if(roadSpeed[i]==-1)roadSpeed[i]=(roadSpeed[i-1]+roadSpeed[i+1])/2;
+    if(roadSpeed[0]==-1)roadSpeed[0]=roadSpeed[1]-(roadSpeed[2]-roadSpeed[1]);
+    if(roadSpeed[6]==-1)roadSpeed[6]=roadSpeed[5]+(roadSpeed[5]-roadSpeed[4]);
+
+    param>>ignoreStr>>sigz;
     int m;
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     ReadTraces(TRACEFILE, m, traces, true, false);

@@ -136,8 +136,8 @@ int main(int argc, char* argv[]){
         file.close();
     }
     TrafficHandler traffics("../Intermediate/train_traffic_data.csv");
-    TaskData("train", traffics);
-    TaskData("valid", traffics);
+    //TaskData("train", traffics);
+    //TaskData("valid", traffics);
     //threads.emplace_back(TaskData, "train", traffics);
     //threads.emplace_back(TaskData, "valid", traffics);
 

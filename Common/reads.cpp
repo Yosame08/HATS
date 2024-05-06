@@ -63,7 +63,7 @@ void ReadRoadNet(const std::string& edgeFN, const std::string& typeFN, G&g, Road
         int id, type;
         string typeName;
         iss >> id >> typeName >> type;
-        roads[id].level=type;
+        roads[id].level=type-1;
     }
 }
 

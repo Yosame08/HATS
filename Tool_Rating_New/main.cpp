@@ -100,33 +100,36 @@ int main(int argc, char* argv[]){
         int acc=0;
         const auto & trOut = traceOut[i], trSTD = traceSTD[i];
         assert(trOut.size() == trSTD.size());
+        assert(trOut.size() != 0);
         double mae = 0, rmse = 0, rnmae = 0, rnrmse = 0;
+        int skipped = 0;
         for(int x=0; x < trSTD.size(); ++x){
             acc += (trSTD[x].roadID == trOut[x].roadID);
             double dist = trSTD[x].tr.p.dist(trOut[x].tr.p);
+            if(dist>5000)cout << x << " Warning: too large distance: " << dist << endl;
             mae += dist, rmse += dist * dist;
             double minSTD=1e38, minOut=1e38;
             float toNodeSTD, toNodeOut;
             for(const auto &y: roads[trSTD[x].roadID].seg){
                 PointLL out;
                 double error = DistPointSeg(y.line, trSTD[x].tr.p, out);
-                if(error<minSTD) minSTD = error, toNodeSTD = y.sumAfter - out.dist(y.line.startLL);;
+                if(error<minSTD) minSTD = error, toNodeSTD = y.sumAfter - out.dist(y.line.startLL);
             }
             for(const auto &y: roads[trOut[x].roadID].seg){
                 PointLL out;
                 double error = DistPointSeg(y.line, trOut[x].tr.p, out);
-                if(error<minOut) minOut = error, toNodeOut = y.sumAfter - out.dist(y.line.startLL);;
+                if(error<minOut) minOut = error, toNodeOut = y.sumAfter - out.dist(y.line.startLL);
             }
             assert(minSTD != 1e38 && minOut != 1e38);
             float minDist = min(DistRN(trSTD[x].roadID, trOut[x].roadID, toNodeSTD, RoadLen(trOut[x].roadID)-toNodeOut),
                                 DistRN(trOut[x].roadID, trSTD[x].roadID, toNodeOut, RoadLen(trSTD[x].roadID)-toNodeSTD));
-            assert(minDist != 1e38);
-            rnmae += minDist, rnrmse += minDist * minDist;
+            if(minDist > 1e37) ++skipped;
+            else rnmae += minDist, rnrmse += minDist * minDist;
         }
         maeAll += mae / trSTD.size();
         rmseAll += sqrt(rmse / trSTD.size());
-        rn_maeAll += rnmae / trSTD.size();
-        rn_rmseAll += sqrt(rnrmse / trSTD.size());
+        rn_maeAll += rnmae / (trSTD.size() - skipped);
+        rn_rmseAll += sqrt(rnrmse / (trSTD.size() - skipped));
         accuAll += acc / (double)trSTD.size();
 
         vector<int>std,out,lcs;
@@ -136,7 +139,13 @@ int main(int argc, char* argv[]){
         float length = LCS(std,out,lcs), stdLen = 0, outLen = 0;
         for(auto x:std)stdLen += RoadLen(x);
         for(auto x:out)outLen += RoadLen(x);
-        double recall = length / stdLen, precision = length / outLen, f1 = recall * precision * 2 / (recall + precision);
+        double recall = length / stdLen, precision = length / outLen;
+        if(recall == 0 || precision == 0){
+            cout<<"In "<<i<<": recall = "<<recall<<"; precision = "<<precision<<endl;
+        }
+        double f1;
+        if (recall == 0 && precision == 0) f1 = 0;
+        else f1 = recall * precision * 2 / (recall + precision);
         recAll += recall, precAll += precision, f1All += f1;
     }
     cout<<fixed<<setprecision(4)<<'\n';

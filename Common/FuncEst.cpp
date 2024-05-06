@@ -17,6 +17,7 @@ using namespace std;
 
 const double sqrt_2_PI = sqrt(M_PI*2);
 void FunctionFit::ReadStat(const string &filename, bool rev){
+    safe_cout("Reading statistics from "+filename);
     std::ifstream file(filename);
     std::string line;
     int tot=0, timeNow;
@@ -39,9 +40,9 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
                 if(num>maxNum)maxNum=num;
             }
             sort(ins.begin(),ins.end());
-            int accept = ins.size() * 0.999;
+            int accept = ins.size() * 0.99;
             sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
-            safe_cout("[FunctionFit] Time = "+to_string(times.back())+", Origin max: "+to_string(ins.back())+", 99.9% max: "+to_string(ins[accept-1]));
+            safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99% max: "+to_string(ins[accept-1]));
             upLim[tot] = ins[accept-1]+1;
             stat[tot].reserve(upLim[tot]+1);
             for(int i=0;i<=upLim[tot];++i)stat[tot][i]=0;
@@ -105,7 +106,7 @@ void FunctionFit::EstiUpdate(int id, const double param[]){
     }
 }
 
-const int width = 12;
+const int width = 14;
 void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
     auto &cacheArr = cache[id];
     for(double v1=ori[0]-step[0]*width; v1<=ori[0]+step[0]*width; v1+=step[0]) {

@@ -93,10 +93,10 @@ for times in range(5):
             best_loss = loss_valid.item()
             best_model = model.state_dict()  # 保存当前最佳模型
         # 检查最近3个epoch的最低验证损失和最近4到6个epoch的最低验证损失
-        if epoch >= 8:
-            last_4_min_loss = min(valid_losses[-4:])
-            last_5_to_8_min_loss = min(valid_losses[-8:-4])
-            if last_4_min_loss >= 0.99 * last_5_to_8_min_loss:
+        if epoch >= 10:
+            last_5_min_loss = min(valid_losses[-5:])
+            last_6_to_10_min_loss = min(valid_losses[-10:-5])
+            if last_5_min_loss >= 0.99 * last_6_to_10_min_loss:
                 print(f"Early stop {times}")
                 break
         

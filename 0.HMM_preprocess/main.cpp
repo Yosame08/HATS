@@ -15,6 +15,8 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+
+#define MXTH 256 // Maximum number of threads
 using namespace std;
 string mode = "train"; // default value
 
@@ -23,8 +25,10 @@ Road roads[PATH_NUM];
 vector<Trace>traces[524288];
 ostringstream fullStream[524288], crossStream[524288];
 GridType inGrid;
-vector<float>turnAngles[256][25];
-vector<float>difDists[256][25];
+vector<float>turnAngles[MXTH][25];
+vector<float>difDists[MXTH][25];
+vector<double>gpsError[MXTH];
+vector<double>avgSpeed[MXTH][7];
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -56,7 +60,15 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         const int &node = roads[lastPath.roadID].to;
         for(auto to:g.node[node]){
             if(vis.chk(to))continue;
-            float angle = top.angle + GetTurnAngle(seqPath[top.node].first.roadID, to);
+            float angle = top.angle;
+            if(RoadLen(to)>=10){
+                int angleNode = top.node;
+                for(;angleNode>=0 && RoadLen(seqPath[angleNode].first.roadID)<10; angleNode = seqPath[angleNode].second);
+                if(angleNode>=0){
+                    if(angleNode == top.node)angle += GetTurnAngle(seqPath[top.node].first.roadID, to);
+                    else angle += DiscontinuousAngle(seqPath[angleNode].first.roadID, to);
+                }
+            }
             if(to==toRoad){
                 float allLen = top.len + fromNodeDistB;
                 if(allLen>=span*40)continue;
@@ -173,6 +185,8 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<float>difSingle[25], turnStash[25];
     while(true){
         const auto &node=search[outID];
+        auto actual = traceNow[node.pointID].p.dist(FindLatLon(node.roadID, node.toNodeDist));
+        gpsError[thread].push_back(actual);
         // 1. Stat: distance difference and angle turned
         if(node.prev!=-1){
             float totLen=0, totAngle=0;
@@ -199,11 +213,19 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         if(node.prev==-1)break;
         outID=node.prev;
     }
-    int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear;
+    int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear,roadTime=-1;
     cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
         auto &now=fullPath[p];
         if(now.roadID!=lastOut){
+            if(roadTime!=-1){
+                long long spend = now.timestamp - roadTime;
+                if(spend > 3) {
+                    assert(!isinf(RoadLen(lastOut) / spend) && !isnan(RoadLen(lastOut) / spend));
+                    avgSpeed[thread][roads[now.roadID].level].push_back(RoadLen(lastOut) / spend);
+                }
+            }
+            roadTime = now.timestamp;
             lastOut=now.roadID;
             fullMatch << now.roadID << ' ';
         }
@@ -232,7 +254,6 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         turnAngles[thread][i].insert(turnAngles[thread][i].end(),turnStash[i].begin(),turnStash[i].end());
     }
     for(auto &x:search)delete x.path;
-    // Output matched GPS traces
 }
 
 std::atomic<int> progress(0);
@@ -268,6 +289,7 @@ void process(int start, int end, int thread){
 
 int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
+
     int num_threads = 8; // default value
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-th") == 0 && i + 1 < argc) {
@@ -281,7 +303,7 @@ int main(int argc, char* argv[]) {
         }
         else cout << "redundant argument: " << argv[i] << endl;
     }
-    
+
     ReadRoadNet(EDGEFILE,TYPEFILE,g,roads,inGrid);
     int m;
     ReadTraces(TRACEFILE, m, traces, true);
@@ -302,24 +324,56 @@ int main(int argc, char* argv[]) {
 
     clog<<"Output..."<<endl;
 
-    ofstream match("../Intermediate/"+mode+"_full_matched.txt");
-    match<<m<<'\n';
-    for(int i=0;i<m;++i)match<<fullStream[i].str();
-
     ofstream cross("../Intermediate/"+mode+"_traffic_data.csv");
     cross<<"traj_id,original_path_id,transition_path_id,hour,sec,distance,elapsed\n";
     for(int i=0;i<m;++i)cross<<crossStream[i].str();
 
-    ofstream turnCount("../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../Intermediate/"+mode+"_difDist_cnt.txt");
-    turnCount<<fixed<<setprecision(1);
-    difDistCount<<fixed<<setprecision(1);
-    for(int j=4;j<=24;++j){
-        turnCount<<j*15<<" Secs:\n";
-        for(int i=0;i<num_threads;++i)for(auto x:turnAngles[i][j])turnCount<<(x*180/M_PI)<<' ';
-        turnCount<<'\n';
-        difDistCount<<j*15<<" Secs:\n";
-        for(int i=0;i<num_threads;++i)for(auto x:difDists[i][j])difDistCount<<x<<' ';
-        difDistCount<<'\n';
+    if(mode == "train"){
+        ofstream match("../Intermediate/"+mode+"_full_matched.txt");
+        match<<m<<'\n';
+        for(int i=0;i<m;++i)match<<fullStream[i].str();
+        ofstream turnCount("../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../Intermediate/"+mode+"_difDist_cnt.txt");
+        turnCount<<fixed<<setprecision(1);
+        difDistCount<<fixed<<setprecision(1);
+        for(int j=4;j<=24;++j){
+            turnCount<<j*15<<" Secs:\n";
+            for(int i=0;i<num_threads;++i)for(auto x:turnAngles[i][j])turnCount<<(x*180/M_PI)<<' ';
+            turnCount<<'\n';
+            difDistCount<<j*15<<" Secs:\n";
+            for(int i=0;i<num_threads;++i)for(auto x:difDists[i][j])difDistCount<<x<<' ';
+            difDistCount<<'\n';
+        }
+
+        for(int i=1;i<num_threads;++i){
+            // merge into Thread0's speed data
+            for(int j=0;j<7;++j){
+                avgSpeed[0][j].insert(avgSpeed[0][j].end(),avgSpeed[i][j].begin(),avgSpeed[i][j].end());
+            }
+        }
+        // assign speeds with the median value
+        ofstream otherParam("../Intermediate/" + mode + "_params.param");
+        for(int i=0;i<7;++i){
+            sort(avgSpeed[0][i].begin(),avgSpeed[0][i].end());
+            double speeds;
+            if(avgSpeed[0][i].empty())speeds=-1;
+            else speeds = avgSpeed[0][i][avgSpeed[0][i].size()/2];
+            otherParam<<i+1<<": "<<speeds<<'\n';
+        }
+
+        otherParam << "gps_std_error: ";
+        double error = 0;
+        int totNum = 0;
+        for(int i=0; i<num_threads; ++i){
+            for(auto x:gpsError[i])error+=x;
+            totNum+=gpsError[i].size();
+        }
+        error/=totNum;
+        double var = 0;
+        for(int i=0; i<num_threads; ++i){
+            for(auto x:gpsError[i])var+=(x-error)*(x-error);
+        }
+        var/=totNum;
+        otherParam << sqrt(var) << '\n';
     }
 
     return 0;

@@ -146,6 +146,7 @@ struct QueueInfo2{
     PathNode pNode;
     int prev, level;
     float len, angle;
+    float estTime;
 };
 
 struct QInfo{ // For A-star
