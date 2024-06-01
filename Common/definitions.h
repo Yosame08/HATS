@@ -13,7 +13,7 @@
 #define SPEEDLIM 50 // Speed limit in m/s
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
-#define vec_len 13
+#define vec_len 15
 
 // Macros for [FuncEst.h/cpp] to fit parameters
 #define granularity 2

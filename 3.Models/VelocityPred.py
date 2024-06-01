@@ -27,7 +27,7 @@ X_valid, y_valid = load_data('../Intermediate/data_vel_valid.csv')
 
 print("Preparing dataset...")
 # 创建数据加载器
-batch_size = 8192  # 你可以根据需要调整这个值
+batch_size = 4096  # 你可以根据需要调整这个值
 train_data = TensorDataset(X_train, y_train)
 train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=15)
 
@@ -36,13 +36,13 @@ output_size = 1
 
 # 定义模型
 model = nn.Sequential(
-    nn.Linear(input_size, 256), nn.ELU(),
+    nn.Linear(input_size, 512), nn.ELU(),
+    nn.Linear(512, 256), nn.ELU(),
     nn.Linear(256, 128), nn.ELU(),
     nn.Linear(128, 64), nn.ELU(),
     nn.Linear(64, 32), nn.ELU(),
     nn.Linear(32, 16), nn.ELU(),
-    nn.Linear(16, 8), nn.ELU(),
-    nn.Linear(8, output_size),
+    nn.Linear(16, output_size),
 ).to(device)
 
 print("Start training...")
@@ -50,15 +50,13 @@ valid_losses = []
 best_loss = float('inf')  # 初始化最小损失为无穷大
 best_model = None  # 初始化最佳模型
 
-step_mul = 0.8
-
 # 训练模型
 for times in range(5):
     # 定义损失函数和优化器
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3*(step_mul**times), weight_decay=1e-6)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=step_mul)
-    for epoch in range(100):  # 请根据你的需求调整迭代次数
+    optimizer = optim.Adam(model.parameters(), lr=1e-3*(0.5**times), weight_decay=1e-6)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    for epoch in range(50):  # 请根据你的需求调整迭代次数
         startTM = time.time()
         model.train()
         train_loss = 0
@@ -93,10 +91,10 @@ for times in range(5):
             best_loss = loss_valid.item()
             best_model = model.state_dict()  # 保存当前最佳模型
         # 检查最近3个epoch的最低验证损失和最近4到6个epoch的最低验证损失
-        if epoch >= 10:
-            last_5_min_loss = min(valid_losses[-5:])
-            last_6_to_10_min_loss = min(valid_losses[-10:-5])
-            if last_5_min_loss >= 0.99 * last_6_to_10_min_loss:
+        if epoch >= 8:
+            last_4_min_loss = min(valid_losses[-4:])
+            last_5_to_8_min_loss = min(valid_losses[-8:-5])
+            if last_4_min_loss >= last_5_to_8_min_loss:
                 print(f"Early stop {times}")
                 break
         

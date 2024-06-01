@@ -61,6 +61,9 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
         int lastID = last["original_path_id"], lastToID = last["transition_path_id"],
                 nowID = line["original_path_id"],
                 elapsed = last["elapsed"];
+        if(elapsed<=0){ // output all info read this line
+            cerr<<"lastID="<<lastID<<", lastToID="<<lastToID<<", nowID="<<nowID<<", elapsed="<<elapsed<<endl;
+        }
         double passed, lastDist = last["distance"], nowDist = line["distance"];
         if(lastID == nowID)passed = lastDist-nowDist, lastDist = (lastDist+nowDist)/2;
         else passed = lastDist, lastDist /= 2;
@@ -87,16 +90,18 @@ void TaskData(const string &mode, const TrafficHandler& traffics){
             long long timestamp = line["hour"]*3600+line["sec"];
             double toNodeDist = line["distance"];
             double vel = (info[i-1].vel*info[i-1].elapsed+info[i].vel*info[i].elapsed)/(double)(info[i-1].elapsed+info[i].elapsed);
-            passed += info[i-1].passed;
-            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist/1000, 1-toNodeDist/1000/road_vectors[info[i].roadID][vec_len-1],
+            if(vel > 40) cerr<<1<<' ' << vel<< ' ' << info[i-1].vel << ' ' << info[i-1].elapsed << ' ' << info[i].vel << ' ' << info[i].elapsed << endl;
+            passed += info[i-1].passed / 2;
+            dataVel.back().push_back(road_vectors[info[i].roadID], toNodeDist, max(0.0,1-toNodeDist/1000/road_vectors[info[i].roadID][vec_len-1]),
                                      traffics.query(info[i].roadID, info[i].toID, timestamp, toNodeDist),
                                      CycleTime(timestamp), passed/lasting[info[i].trajID].second, vel); // info[i].begin/(double)lasting[info[i].trajID].first
         }
         else passed = 0;
         dataVel.append(newLine);
         double vel = info[i].vel;
-        passed += info[i].passed;
-        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode/1000, 1-info[i].toNode/1000/road_vectors[info[i].roadID][vec_len-1],
+        if(vel > 40) cerr<<"2 "<< vel<<endl;
+        passed += info[i].passed / 2;
+        dataVel.back().push_back(road_vectors[info[i].roadID], info[i].toNode, max(0.0,1-info[i].toNode/1000/road_vectors[info[i].roadID][vec_len-1]),
                                  traffics.query(info[i].roadID, info[i].toID, info[i].timestamp, info[i].toNode),
                                  CycleTime(info[i].timestamp), passed/lasting[info[i].trajID].second,  vel); // (info[i].begin+info[i].elapsed/2.0)/lasting[info[i].trajID].first
     }
@@ -115,7 +120,7 @@ int main(int argc, char* argv[]){
     }
     if(num_threads<=1)num_threads=2;
     std::vector<std::thread> threads;
-    threads.emplace_back(TaskParam, num_threads-1);
+    //threads.emplace_back(TaskParam, num_threads-1);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
@@ -136,8 +141,8 @@ int main(int argc, char* argv[]){
         file.close();
     }
     TrafficHandler traffics("../Intermediate/train_traffic_data.csv");
-    //TaskData("train", traffics);
-    //TaskData("valid", traffics);
+    TaskData("train", traffics);
+    TaskData("valid", traffics);
     //threads.emplace_back(TaskData, "train", traffics);
     //threads.emplace_back(TaskData, "valid", traffics);
 

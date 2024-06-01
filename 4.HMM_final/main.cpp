@@ -46,7 +46,7 @@ void FindIndex(unsigned long long time, int &l, int &r){
 /// @param angle RAD
 /// @brief Convert radians to angles and predict with the fitted function
 double AngleProb(double angle, int time){
-    //assert(angle==angle);
+    if(isnan(angle))throw "Nan value in function AngleProb!";
     int l, r;
     FindIndex(time, l, r);
     if(l == r)return parTurn.Estimate_wrap(angle*180/M_PI, l);
@@ -55,7 +55,7 @@ double AngleProb(double angle, int time){
 }
 
 double DifDistProb(double dif, int time) {
-    //assert(dif==dif);
+    if(isnan(dif))throw "Nan value in function DifDistProb!";
     const auto &use = dif<0?parLenNeg:parLenPos;
     int l, r;
     FindIndex(time, l, r);
@@ -64,7 +64,7 @@ double DifDistProb(double dif, int time) {
 }
 
 double SearchDifDistProb(double dif, int time) {
-    //assert(dif==dif);
+    if(isnan(dif))throw "Nan value in function SearchDifDistProb!";
     if(dif<0)return 1;
     return DifDistProb(dif, time);
 }
@@ -113,8 +113,8 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
                 int angleNode = lastNode;
                 for(;angleNode>=0 && RoadLen(seqPath[angleNode].pNode.roadID)<10; angleNode = seqPath[angleNode].prev);
                 if(angleNode>=0){
-                    if(angleNode == lastNode)angle += GetTurnAngle(atRoad, to);
-                    else angle += DiscontinuousAngle(seqPath[angleNode].pNode.roadID, to);
+                    if(angleNode == lastNode)angle += (float)GetTurnAngle(atRoad, to);
+                    else angle += (float)DiscontinuousAngle(seqPath[angleNode].pNode.roadID, to);
                 }
             }
 
@@ -145,8 +145,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             seqPath.push_back({PathNode{to, lastInfo.pNode.timestamp, (float)RoadLen(to)},
                                lastNode, lastInfo.level+1, totLen, angle, consume});
             q.push({SearchDifDistProb(totLen - greatCircle + roads[to].seg.back().line.endLL.dist(nowTr.p), span) *
-                AngleProb(angle, span) *
-                MedianSpeedProb(totLen, consume), seqSize++}); //
+                AngleProb(angle, span) * MedianSpeedProb(totLen, consume), seqSize++}); //
         }
     }
     // search end
@@ -164,7 +163,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
-    //if(id<4)return;
+    //if(id<1204)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -250,9 +249,9 @@ void solve(int id){
     // Stat
     map<int,float>journeyLen;
     deque<int>fullPath;
-    for(int id = outID; id != -1; id = search[id].prev){
-        for(auto it=search[id].path->rbegin(); it!=search[id].path->rend(); ++it)fullPath.push_front(it->roadID);
-        journeyLen[id] = search[id].length;
+    for(int idNow = outID; idNow != -1; idNow = search[idNow].prev){
+        for(auto it=search[idNow].path->rbegin(); it != search[idNow].path->rend(); ++it)fullPath.push_front(it->roadID);
+        journeyLen[idNow] = search[idNow].length;
     }
     float totLen = 0;
     for(auto &x:journeyLen){
@@ -277,7 +276,7 @@ void solve(int id){
         auto *predVel = new vector<float>{};
         while(index < node.path->size() - 1){
             while (toNodeDist > 0) {
-                vel = VelPrediction(roadID, toID, toNodeDist, tm, (journeyLen[outID] + passed)/totLen); //, (tm+1-st)/(double)journey)
+                vel = VelPrediction(roadID, toID, toNodeDist, tm, totLen!=0?(journeyLen[outID] + passed)/totLen:1); //, (tm+1-st)/(double)journey)
                 tm+=1, toNodeDist -= vel, predVel->push_back(vel), passed += vel;
             }
             while (toNodeDist <= 0 && index < node.path->size() - 1){
@@ -296,7 +295,7 @@ void solve(int id){
             }
         }
         while (needPass > 0) {
-            vel = VelPrediction(roadID, toID, toNodeDist, tm, (journeyLen[outID] + passed)/totLen); // , (tm+1-st)/(double)journey)
+            vel = VelPrediction(roadID, toID, toNodeDist, tm, totLen!=0?(journeyLen[outID] + passed)/totLen:1); // , (tm+1-st)/(double)journey)
             ++tm, toNodeDist -= vel, needPass -= vel, predVel->push_back(vel), passed += vel;
         }
         if (abs(tm - traceNow[node.pointID].timestamp) < abs(minDif - traceNow[node.pointID].timestamp)) {
@@ -407,7 +406,12 @@ int main(int argc, char* argv[]) {
     ios::sync_with_stdio(false);
     ifstream param("../Intermediate/train_params.param");
     string ignoreStr;
-    for(int i=0;i<7;++i)param>>ignoreStr>>roadSpeed[i];
+    for(float & i : roadSpeed){
+        string a,b,c;
+        param>>ignoreStr>>a>>b>>c;
+        i=stof(a);
+        if(isnan(i))i=-1;
+    }
     //in case no data in training set
     for(int i=1;i<6;++i)if(roadSpeed[i]==-1)roadSpeed[i]=(roadSpeed[i-1]+roadSpeed[i+1])/2;
     if(roadSpeed[0]==-1)roadSpeed[0]=roadSpeed[1]-(roadSpeed[2]-roadSpeed[1]);

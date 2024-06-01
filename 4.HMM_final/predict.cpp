@@ -16,8 +16,9 @@ TrafficHandler traffics("../Intermediate/train_traffic_data.csv");
 extern vector<float> road_vectors[PATH_NUM];
 float VelPrediction(int roadID, int toID, float toNodeDist, long long timestamp, float percent){
     vector<float>inputs(road_vectors[roadID]);
-    inputs.push_back(toNodeDist/1000);
-    inputs.push_back(1-toNodeDist/RoadLen(roadID));
+    inputs.push_back(toNodeDist);
+    float roadRatio = 1-toNodeDist/RoadLen(roadID);
+    inputs.push_back(std::max(roadRatio, 0.f));
     inputs.push_back(traffics.query(roadID, toID, timestamp%86400, toNodeDist));
     inputs.push_back(CycleTime(timestamp%86400));
     inputs.push_back(percent);

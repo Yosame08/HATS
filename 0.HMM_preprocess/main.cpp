@@ -29,6 +29,7 @@ vector<float>turnAngles[MXTH][25];
 vector<float>difDists[MXTH][25];
 vector<double>gpsError[MXTH];
 vector<double>avgSpeed[MXTH][7];
+double typeLen[MXTH][7];
 
 double DifDistProb(double dif) {
     return exp(-abs(dif) / BETA) / BETA;
@@ -102,6 +103,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<int> unmatched(0);
 void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
+    //if(id<3041)return;
     auto myAssert = [id, &fullMatch](bool condition, const string& cause){
         if(condition)return true;
         string msg = string("Can't Match point to road at road id ")+ to_string(id)+string(" due to ")+cause;
@@ -147,7 +149,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                     angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);
                 } else {
                     SearchRes result = SearchRoad(old.roadID, now.roadID, old.toNodeDist,
-                                                  RoadLen(now.roadID) - now.toNodeDist, traceNow[i - 1], traceNow[i]);
+                                                  max(0.f, RoadLen(now.roadID) - now.toNodeDist), traceNow[i - 1], traceNow[i]);
                     if (result.prob == -1)continue;
                     traceProb = result.prob, path = result.path;
                     ground = result.length, angle = result.angle;
@@ -213,21 +215,36 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         if(node.prev==-1)break;
         outID=node.prev;
     }
-    int lastOut=-1,rear=int(fullPath.size())-1,nextOut=rear,roadTime=-1;
+    int lastOut=-1,roadTime=-1,lastNode=-1,rear=int(fullPath.size())-1,nextOut=rear,waiting=0;
     cross<<fixed<<setprecision(3);
     for(int p=rear;p>=0;--p){
         auto &now=fullPath[p];
+        if(p){
+            auto &last = fullPath[p-1];
+            int lv = roads[last.roadID].level;
+            if(lv<0||lv>6)throw "Only level 1-7 of roads are supported";
+            if(now.roadID!=last.roadID)typeLen[thread][lv] += last.toNodeDist;
+            else typeLen[thread][lv] += now.toNodeDist - last.toNodeDist;
+        }
         if(now.roadID!=lastOut){
             if(roadTime!=-1){
-                long long spend = now.timestamp - roadTime;
-                if(spend > 3) {
-                    assert(!isinf(RoadLen(lastOut) / spend) && !isnan(RoadLen(lastOut) / spend));
-                    avgSpeed[thread][roads[now.roadID].level].push_back(RoadLen(lastOut) / spend);
+                long long spend = now.timestamp - roadTime - waiting;
+                if(spend > 2) {
+                    if(spend){
+                        float speeds = fullPath[lastNode].toNodeDist / spend;
+                        if(speeds >= 1)avgSpeed[thread][roads[now.roadID].level].push_back(speeds);
+                    }
                 }
             }
             roadTime = now.timestamp;
             lastOut=now.roadID;
+            lastNode=p;
+            waiting = 0;
             fullMatch << now.roadID << ' ';
+        }
+        else{
+            float speeds = (fullPath[p+1].toNodeDist - now.toNodeDist) / (now.timestamp - fullPath[p+1].timestamp);
+            if(speeds<2) waiting += now.timestamp - fullPath[p+1].timestamp;
         }
         //nextOut is the next point which refers to a different roadID
         if(p==nextOut){
@@ -352,12 +369,18 @@ int main(int argc, char* argv[]) {
         }
         // assign speeds with the median value
         ofstream otherParam("../Intermediate/" + mode + "_params.param");
+        for(int i=1; i<num_threads; ++i)for(int j=0;j<7;++j)typeLen[0][j]+=typeLen[i][j];
+        float sum=0;
+        for(int i=0;i<7;++i)sum+=typeLen[0][i];
         for(int i=0;i<7;++i){
             sort(avgSpeed[0][i].begin(),avgSpeed[0][i].end());
             double speeds;
             if(avgSpeed[0][i].empty())speeds=-1;
             else speeds = avgSpeed[0][i][avgSpeed[0][i].size()/2];
-            otherParam<<i+1<<": "<<speeds<<'\n';
+            double avg = 0;
+            for(auto x:avgSpeed[0][i])avg+=x;
+            avg/=avgSpeed[0][i].size();
+            otherParam<<i+1<<": "<<speeds<<' '<<avg<<' '<<(typeLen[0][i]/sum)<<'\n';
         }
 
         otherParam << "gps_std_error: ";

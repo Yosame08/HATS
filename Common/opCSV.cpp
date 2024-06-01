@@ -1,8 +1,11 @@
 // Update at 2024.2.11
+// Update at 2024.5.30 set precision to 5
 #include "opCSV.h"
 #include<fstream>
 #include<sstream>
 #include<algorithm>
+#include<iomanip>
+
 using namespace std;
 
 CSVFile::CSVFile(const vector<std::string> &sHeaders) {
@@ -54,6 +57,7 @@ void CSVFile::set(int id, const string &header, double val){
 
 void CSVFile::saveTo(const string &path){
     ofstream out(path);
+    out<<setprecision(7);
     for(auto it = headers_seq.begin(); it != headers_seq.end(); ++it){
         if(it != headers_seq.begin()) out << ",";
         out << *it;

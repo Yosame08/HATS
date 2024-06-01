@@ -22,7 +22,7 @@ private:
     };
     std::unordered_map<int,Traffic*> lights[PATH_NUM+1];
     int lim{};
-    void addInterval(int id, int to, int l, int r, short val);
+    void addInterval(int id, int to, int l, int r, short val, int mode);
     void init(const char* filename);
 public:
     explicit TrafficHandler(const char* filename){

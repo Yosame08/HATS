@@ -93,6 +93,7 @@ int main(int argc, char* argv[]){
     int m1,m2;
     fullOUT >> m1, fullOUT.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     fullSTD >> m2, fullSTD.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    if(m1!=m || m2!=m)cout<<"Warning: "<<"m1="<<m1<<", m2="<<m2<<", m="<<m<<endl;
     assert(m==m1 && m==m2);
     cout<<"Rating..."<<endl;
     for(int i=0;i<m;++i){
