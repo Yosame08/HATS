@@ -5,12 +5,12 @@ from file import *
 file_map = '../Map/edgeOSM.txt'
 file_in_sampled = '../test_sampled.txt'  # matched trace file name
 file_in_pred = '../RecoveryHistory/RN_Recovery.txt'
-file_in_true = '../test_output.txt'
-file_out = '../RecoveryHistory/RN_Full.txt'  # continuous roads file name
+file_in_true = '../train_input.txt' # '../test_output.txt'
+file_out = '../Intermediate/train_full_matched.txt' # '../RecoveryHistory/RN_Full.txt'  # continuous roads file name
 file_generateM = 'Porto_Matched.html'
 
 specify = False
-track_from, track_to, track_step = 27483, 27485, 1  # define show how many traces on the map
+track_from, track_to, track_step = 2, 3, 1  # define show how many traces on the map
 indexes = [0]
 plot_indexes = []
 if specify:
@@ -62,9 +62,9 @@ def add_marker(filename, colorR, colorB, type):
 if len(file_in_true) > 0:
     print("STEP 2: Reading Tracks")
     print("Sampled:")
-    add_marker(file_in_sampled, "00", "00", folium.Marker)
+    # add_marker(file_in_sampled, "00", "00", folium.Marker)
     print("Pred:")
-    add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
+    # add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
     print("True:")
     add_marker(file_in_true, "ff", "00", folium.CircleMarker)
 

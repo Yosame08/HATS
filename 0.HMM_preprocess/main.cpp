@@ -62,9 +62,9 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         for(auto to:g.node[node]){
             if(vis.chk(to))continue;
             float angle = top.angle;
-            if(RoadLen(to)>=20){
+            if(RoadLen(to)>=degMinLen){
                 int angleNode = top.node;
-                for(;angleNode>=0 && RoadLen(seqPath[angleNode].first.roadID)<10; angleNode = seqPath[angleNode].second);
+                for(;angleNode>=0 && RoadLen(seqPath[angleNode].first.roadID)<degMinLen; angleNode = seqPath[angleNode].second);
                 if(angleNode>=0){
                     if(angleNode == top.node)angle += GetTurnAngle(seqPath[top.node].first.roadID, to);
                     else angle += DiscontinuousAngle(seqPath[angleNode].first.roadID, to);
@@ -103,6 +103,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<int> unmatched(0);
 void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
+    if(id<2)return;
     auto myAssert = [id, &fullMatch](bool condition, const string& cause){
         if(condition)return true;
         string msg = string("Can't Match point to road at road id ")+ to_string(id)+string(" due to ")+cause;
@@ -116,7 +117,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>angles;
     int matched[traceNow.size()];
-    FindRoadMulti(50, 50, traceNow[0].p, found);
+    FindRoadMulti(60, 60, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
@@ -127,7 +128,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoadMulti(50, 50, traceNow[i].p, found);
+        FindRoadMulti(60, 60, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
@@ -142,7 +143,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 if (old.roadID == now.roadID) {
                     path = new Path();
                     ground = old.toNodeDist - now.toNodeDist;
-                    if (ground < -RECOVER_INTERVAL) continue;
+                    if (ground < -RECOVER_INTERVAL * 2) continue;
                     traceProb = DifDistProb(ground - traceNow[i - 1].p.dist(traceNow[i].p));
                     path->push_back({now.roadID, traceNow[i].timestamp, now.toNodeDist});
                     angle = FindAngle(now.roadID, now.toNodeDist) - FindAngle(old.roadID, old.toNodeDist);

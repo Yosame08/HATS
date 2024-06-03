@@ -109,9 +109,9 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             if(vis.chk(to))continue;
 
             float angle = lastInfo.angle;
-            if(RoadLen(to)>=20){
+            if(RoadLen(to)>=degMinLen){
                 int angleNode = lastNode;
-                for(;angleNode>=0 && RoadLen(seqPath[angleNode].pNode.roadID)<10; angleNode = seqPath[angleNode].prev);
+                for(;angleNode>=0 && RoadLen(seqPath[angleNode].pNode.roadID)<degMinLen; angleNode = seqPath[angleNode].prev);
                 if(angleNode>=0){
                     if(angleNode == lastNode)angle += (float)GetTurnAngle(atRoad, to);
                     else angle += (float)DiscontinuousAngle(seqPath[angleNode].pNode.roadID, to);
