@@ -28,7 +28,7 @@ void TrafficHandler::addInterval(int id, int to, int l, int r, short val, int mo
     auto &modify = lights[id][to];
     if(l<=r)modify->score[l]+=val, modify->score[r + 1]-=val;
     else modify->score[l]+=val, modify->score[0]+=val, modify->score[r + 1]-=val;
-    modify->percent+=val;
+    modify->percent+=val<0?val*2:val;
     modify->cnt+=abs(val);
 }
 
@@ -66,7 +66,7 @@ void TrafficHandler::init(const char* filename) {
                 int mid = last.stamp+(last.elapsed-bias)/2;
                 if(stopped) addInterval(last.from, last.to, last.stamp-bias,stamp,2, 0);
                 else if(vel < slow_lim && last.elapsed > 1){ // stop -> start in the same time interval
-                    addInterval(last.from, last.to, last.stamp-bias, mid, -2, 1);
+                    addInterval(last.from, last.to, last.stamp-bias, mid-1, -2, 1);
                     addInterval(last.from, last.to, mid,stamp,2, 2);
                 }
                 else addInterval(last.from, last.to, last.stamp+last.elapsed/2, stamp, 2, 3);
@@ -74,13 +74,13 @@ void TrafficHandler::init(const char* filename) {
             }
             else{
                 double vel = (last.dist-in[distance])/last.elapsed;
-                if(vel >= -1 && in[distance]<200){ // approaching crossing
+                if(vel >= -1 && in[distance]<=200){ // approaching crossing
                     int correction = in[distance]/trSpeed;
                     if(vel < slow_lim){ // when vehicle stops
                         stopped=true; recovered=false;
                         addInterval(fromID,toID,last.stamp-bias,stamp-correction,-1, 4);
                     }
-                    else if(stopped && vel >= slow_lim || recovered){ // when stopped vehicle moves
+                    else if((stopped && vel >= slow_lim) || recovered){ // when stopped vehicle moves
                         stopped=false; recovered=true;
                         addInterval(fromID,toID,last.stamp-bias,stamp-correction,1, 5);
                     }
@@ -110,7 +110,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
     const auto &scoreArr = lights[roadID].at(toID)->score;
     const auto check = [&](int stamp){
         double result = 0;
-        for(int bias=0;bias<=10;++bias){
+        for(int bias=0;bias<=5;++bias){
             int l = stamp - bias, r = stamp + bias;
             revise(l), revise(r);
             double factor = Normal(bias);
@@ -135,6 +135,7 @@ double TrafficHandler::query(int roadID, int toID, long long timestamp, float to
         accu += check(past) * 0.25 + check(future) * 0.25;
     }
     double result = 1/(1+exp(-accu));
+    // return result;
     return result == 0.5 ? lights[roadID].at(toID)->percent : result;
 }
 

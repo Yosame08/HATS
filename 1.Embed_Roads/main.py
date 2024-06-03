@@ -77,7 +77,11 @@ lines = lines[1:]
 # 将每一行的道路ID序列转化为列表
 sequences = [line.strip().split() for line in lines]
 for seq in sequences:
+    vis = [False for i in range(lim+1)]
     for x in seq:
+        if vis[int(x)]:
+            continue
+        vis[int(x)] = True
         occur[int(x)] += 1
 
 vec_size = 12

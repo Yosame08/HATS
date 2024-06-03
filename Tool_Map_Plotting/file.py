@@ -113,7 +113,7 @@ def anchorLines_TimePxPy(lines, setid=-1) -> Anchors:
 
 def anchorFile(filename) -> list[Anchors]:
     with open(filename, 'r') as file:
-        lines = list(itertools.islice(file, 200000))[1:]
+        lines = list(itertools.islice(file, 2000000))[1:]
         while len(lines[-1]) > 10:  # 如果最后一行长度大于10
             lines.append(next(file))  # 继续读取下一行
 

@@ -16,6 +16,7 @@ using namespace std;
  */
 
 const double sqrt_2_PI = sqrt(M_PI*2);
+const int width = 16;
 void FunctionFit::ReadStat(const string &filename, bool rev){
     safe_cout("Reading statistics from "+filename);
     std::ifstream file(filename);
@@ -42,7 +43,7 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
             sort(ins.begin(),ins.end());
             int accept = ins.size() * 0.99;
             sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
-            safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99% max: "+to_string(ins[accept-1]));
+            safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99%: "+to_string(ins[accept-1]));
             upLim[tot] = ins[accept-1]+1;
             stat[tot].reserve(upLim[tot]+1);
             for(int i=0;i<=upLim[tot];++i)stat[tot][i]=0;
@@ -88,16 +89,14 @@ double CalcArea(double _mu, double _sigma){
 }
 
 double FunctionFit::Estimate(double x, const double param[], const double cache[]) {
-    const double x2 = x*x, x_mu_2 = (x-param[mu2]) * (x - param[mu2]);//, x_mu_3 = (x-param[mu3]) * (x-param[mu3]),
-    return cache[S1] * exp(-x2 / cache[sig1])
-         + cache[mu2] * exp(-x_mu_2 / cache[sig2]);
+    const double x_mu_2 = (x-param[mu2]) * (x-param[mu2]);
+    return cache[S1] * exp(-x*x / cache[sig1]) + cache[mu2] * exp(-x_mu_2 / cache[sig2]);
 }
 
 void FunctionFit::EstiUpdate(int id, const double param[]){
     double l=0;
     for(int i=0; i<=upLim[id]; ++i){
         double est = Estimate(i, param, cache[id]);
-        assert(est==est); // nan inf
         l += abs(est - stat[id][i]);
     }
     if(l < loss[id]){
@@ -106,24 +105,23 @@ void FunctionFit::EstiUpdate(int id, const double param[]){
     }
 }
 
-const int width = 14;
 void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
     auto &cacheArr = cache[id];
-    for(double v1=ori[0]-step[0]*width; v1<=ori[0]+step[0]*width; v1+=step[0]) {
-        if(v1<=1e-10)continue;
-        param[sig1] = v1;
+    param[sig1] = ori[0]-step[0]*width;
+    for (int i1=-width; i1<=width; ++i1, param[sig1]+=step[0]) {
+        if(param[sig1]<=1e-10)continue;
         cacheArr[sig1] = param[sig1] * param[sig1] * 2;
-        for(double v2=ori[1]-step[1]*width; v2<=ori[1]+step[1]*width; v2+=step[1]) {
-            if(v2<=1e-10||v2>=1)continue;
-            param[S1] = v2;
+        param[S1] = ori[1]-step[1]*width;
+        for (int i2=-width; i2<=width; ++i2, param[S1]+=step[1]) {
+            if(param[S1]<=1e-10||param[S1]>=1)continue;
             cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
-            for (double v3=ori[2]-step[2]*width; v3<=ori[2]+step[2]*width; v3+=step[2]) {
-                if(v3<=1e-10)continue;
-                param[sig2] = v3;
+            param[sig2] = ori[2]-step[2]*width;
+            for (int i3=-width; i3<=width; ++i3, param[sig2]+=step[2]) {
+                if(param[sig2]<=1e-10)continue;
                 cacheArr[sig2] = param[sig2] * param[sig2] * 2;
-                for (double v4=ori[3]-step[3]*width; v4<=ori[3]+step[3]*width; v4+=step[3]) {
-                    if(v4<=1e-10)continue;
-                    param[mu2] = v4;
+                param[mu2] = ori[3]-step[3]*width;
+                for (int i4=-width; i4<=width; ++i4, param[mu2]+=step[3]) {
+                    if(param[mu2]<=1e-10)continue;
                     cacheArr[mu2] = (1 - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
                     EstiUpdate(id, param);
                 }
@@ -146,7 +144,7 @@ void FunctionFit::FindParam(int id){
         for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
     };
     updateParam();
-    //safe_cout(to_string(id)+" Finding parameters... 0%");
+
     for(int i=1;i<=30;++i){
         if(i==16)safe_cout(to_string(id)+" Finding parameters... 50%");
         FindPreciseParam(id, tmp_param, step, origin_param);

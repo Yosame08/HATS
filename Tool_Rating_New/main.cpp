@@ -100,7 +100,10 @@ int main(int argc, char* argv[]){
         if(i%1024==0)cout<<"\rRated "<<(i>>10)<<"K trajectories"<<flush;
         int acc=0;
         const auto & trOut = traceOut[i], trSTD = traceSTD[i];
-        assert(trOut.size() == trSTD.size());
+        if(trOut.size() != trSTD.size()){
+            cout<<i<<" Error: trOut.size() != trSTD.size()"<<endl;
+            return 0;
+        }
         assert(trOut.size() != 0);
         double mae = 0, rmse = 0, rnmae = 0, rnrmse = 0;
         int skipped = 0;

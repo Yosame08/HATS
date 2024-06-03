@@ -109,7 +109,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
             if(vis.chk(to))continue;
 
             float angle = lastInfo.angle;
-            if(RoadLen(to)>=10){
+            if(RoadLen(to)>=20){
                 int angleNode = lastNode;
                 for(;angleNode>=0 && RoadLen(seqPath[angleNode].pNode.roadID)<10; angleNode = seqPath[angleNode].prev);
                 if(angleNode>=0){
@@ -149,7 +149,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
         }
     }
     // search end
-    if(result.prob * accuProb <= maxProb)return {result.prob,-1}; // Search Failed
+    if(result.prob * accuProb < maxProb)return {result.prob,-1}; // Search Failed
     result.path = new Path();
     stack<int>choose;
     for(int x=result.node;x!=-1;x=seqPath[x].prev)choose.push(x);
@@ -163,7 +163,6 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
-    //if(id<1204)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -193,7 +192,7 @@ void solve(int id){
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         for(auto &now:found){
-            SearchNode maxNode{0,0,0,0,0,0,nullptr};
+            SearchNode maxNode{-1,0,0,0,0,0,nullptr};
             for(int l=oldBegin;l<=oldEnd;++l){
                 SearchNode &old = search[l];
                 if(traceNow[i].timestamp - traceNow[i-1].timestamp>=65536) throw "Too long interval of trajectory!";
@@ -206,7 +205,7 @@ void solve(int id){
                     traceProb = DifDistProb(ground - traceNow[i - 1].p.dist(traceNow[i].p), int(traceNow[i].timestamp-traceNow[i-1].timestamp)) * //
                                 AngleProb(angle, int(traceNow[i].timestamp-traceNow[i-1].timestamp));
                     allProb = old.prob * now.prob * traceProb;
-                    if(allProb > maxNode.prob) {
+                    if(allProb >= maxNode.prob) {
                         delete maxNode.path;
                         maxNode = {allProb, now.toNodeDist, ground, now.roadID, l, i, new Path()};
                         maxNode.path->push_back({old.roadID, traceNow[i - 1].timestamp, old.toNodeDist});
@@ -225,7 +224,7 @@ void solve(int id){
                     maxNode = {allProb, now.toNodeDist, result.length, now.roadID, l, i, result.path};
                 }
             }
-            if(maxNode.prob>0)search.push_back(maxNode);
+            if(maxNode.prob>=0)search.push_back(maxNode);
         }
         if(search.size()-1==oldEnd){ // HMM break
             safe_cout(string("HMM break at PATH ")+ to_string(id) + string(" trace ")+ to_string(i));
@@ -243,7 +242,7 @@ void solve(int id){
     beginTM = clock();
     double maxProb=0;
     int outID;
-    for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
+    for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>=maxProb)maxProb=search[i].prob, outID=i;
     PointLL lastPoint = FindLatLon(search[outID].roadID, search[outID].toNodeDist);
     int lastID = search[outID].roadID;
     // Stat
@@ -264,7 +263,7 @@ void solve(int id){
     Path* nxtPath = nullptr;
     while(search[outID].prev!=-1){
         auto &node=search[outID];
-        if(!myAssert(node.path->size()>=2,"(Bug) Exists a node with no path at trace"+to_string(id)))return;
+        if(!myAssert(node.path->size()>=2,"\n(Bug) Exists a node with no path at trace\n"+to_string(id)))return;
 
         auto &last=search[node.prev];
         result.push_back(Path{PathNode{last.roadID,traceNow[last.pointID].timestamp,last.toNodeDist}});

@@ -4,13 +4,13 @@ from file import *
 
 file_map = '../Map/edgeOSM.txt'
 file_in_sampled = '../test_sampled.txt'  # matched trace file name
-file_in_pred = '../RecoveryHistory/240506_Recovery.txt'
+file_in_pred = '../RecoveryHistory/RN_Recovery.txt'
 file_in_true = '../test_output.txt'
-file_out = '../RecoveryHistory/240506_Full.txt'  # continuous roads file name
+file_out = '../RecoveryHistory/RN_Full.txt'  # continuous roads file name
 file_generateM = 'Porto_Matched.html'
 
 specify = False
-track_from, track_to, track_step = 146, 147, 15  # define show how many traces on the map
+track_from, track_to, track_step = 27483, 27485, 1  # define show how many traces on the map
 indexes = [0]
 plot_indexes = []
 if specify:
@@ -64,9 +64,9 @@ if len(file_in_true) > 0:
     print("Sampled:")
     add_marker(file_in_sampled, "00", "00", folium.Marker)
     print("Pred:")
-    #add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
+    add_marker(file_in_pred, "00", "ff", folium.CircleMarker)
     print("True:")
-    #add_marker(file_in_true, "ff", "00", folium.CircleMarker)
+    add_marker(file_in_true, "ff", "00", folium.CircleMarker)
 
 if len(file_out) > 0:
     print("STEP 3: Processing Outputs")

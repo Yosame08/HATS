@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <queue>
 #include "definitions.h"
 
 class FunctionFit{
@@ -28,7 +29,7 @@ public:
 private:
     int upLim[mxMissing]{};
     std::vector<double> stat[mxMissing + 1]{};
-    double params[mxMissing + 1][Size]{}, cache[mxMissing + 1][Size]{}, loss[mxMissing + 1]{}, prep[mxMissing + 1][6000]{};
+    double params[mxMissing + 1][Size]{}, cache[mxMissing + 1][Size]{}, loss[mxMissing + 1]{}, prep[mxMissing + 1][8192]{};
     double sigMul1[mxMissing]{}, sigMul3[mxMissing]{}, midVal[mxMissing]{};
 
     void FindParam(int id);

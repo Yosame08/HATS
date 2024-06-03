@@ -25,8 +25,8 @@ Road roads[PATH_NUM];
 vector<Trace>traces[524288];
 ostringstream fullStream[524288], crossStream[524288];
 GridType inGrid;
-vector<float>turnAngles[MXTH][25];
-vector<float>difDists[MXTH][25];
+vector<float>turnAngles[MXTH][mxMissing+1];
+vector<float>difDists[MXTH][mxMissing+1];
 vector<double>gpsError[MXTH];
 vector<double>avgSpeed[MXTH][7];
 double typeLen[MXTH][7];
@@ -62,7 +62,7 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
         for(auto to:g.node[node]){
             if(vis.chk(to))continue;
             float angle = top.angle;
-            if(RoadLen(to)>=10){
+            if(RoadLen(to)>=20){
                 int angleNode = top.node;
                 for(;angleNode>=0 && RoadLen(seqPath[angleNode].first.roadID)<10; angleNode = seqPath[angleNode].second);
                 if(angleNode>=0){
@@ -103,7 +103,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<int> unmatched(0);
 void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
-    //if(id<3041)return;
     auto myAssert = [id, &fullMatch](bool condition, const string& cause){
         if(condition)return true;
         string msg = string("Can't Match point to road at road id ")+ to_string(id)+string(" due to ")+cause;
@@ -117,7 +116,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     vector<SearchNode>search;
     vector<float>angles;
     int matched[traceNow.size()];
-    FindRoadMulti(60, 60, traceNow[0].p, found);
+    FindRoadMulti(50, 50, traceNow[0].p, found);
     if(!myAssert(!found.empty(), "Can't match point 0 to a road"))return;
     search.reserve(found.size());
     for(auto &x:found){
@@ -128,7 +127,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
 
     for(int i=1;i<traceNow.size();++i){
         found.clear();
-        FindRoadMulti(60, 60, traceNow[i].p, found);
+        FindRoadMulti(50, 50, traceNow[i].p, found);
         if(!myAssert(!found.empty(), "Can't match point "+ to_string(i)+" to a road"))return;
 
         double maxProb=-1;
@@ -182,9 +181,9 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
     for(int i=oldBegin;i<=oldEnd;++i)if(search[i].prob>maxProb)maxProb=search[i].prob, outID=i;
     // Get the full trace
     Path fullPath;
-    int recent24[25]{};
+    int recent24[mxMissing+1]{};
 
-    vector<float>difSingle[25], turnStash[25];
+    vector<float>difSingle[mxMissing+1], turnStash[mxMissing+1];
     while(true){
         const auto &node=search[outID];
         auto actual = traceNow[node.pointID].p.dist(FindLatLon(node.roadID, node.toNodeDist));
@@ -194,7 +193,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
             float totLen=0, totAngle=0;
             // Filtering anomalous data points on a road: far from an intersection but [traveling slowly / stopping]
             recent24[0]=outID;
-            for(int i=1;i<=24;++i){
+            for(int i=1;i<=mxMissing;++i){
                 if(!recent24[i])break;
                 int &old=recent24[i];
                 totLen += search[old].length;
@@ -203,7 +202,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
                 difSingle[i].push_back(dif);
                 turnStash[i].push_back(totAngle);
             }
-            for(int i=24;i>=1;--i)recent24[i]=recent24[i-1];
+            for(int i=mxMissing;i>=1;--i)recent24[i]=recent24[i-1];
         }
 
         if(!myAssert(!node.path->empty(),"(Bug) Exists a node with no path at trace"+to_string(id)))return;
@@ -266,7 +265,7 @@ void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
         }
     }
     fullMatch << '\n';
-    for(int i=4;i<=24;++i){
+    for(int i=2;i<=mxMissing;++i){
         difDists[thread][i].insert(difDists[thread][i].end(),difSingle[i].begin(),difSingle[i].end());
         turnAngles[thread][i].insert(turnAngles[thread][i].end(),turnStash[i].begin(),turnStash[i].end());
     }
@@ -352,7 +351,7 @@ int main(int argc, char* argv[]) {
         ofstream turnCount("../Intermediate/"+mode+"_turn_cnt.txt"), difDistCount("../Intermediate/"+mode+"_difDist_cnt.txt");
         turnCount<<fixed<<setprecision(1);
         difDistCount<<fixed<<setprecision(1);
-        for(int j=4;j<=24;++j){
+        for(int j=2;j<=mxMissing;++j){
             turnCount<<j*15<<" Secs:\n";
             for(int i=0;i<num_threads;++i)for(auto x:turnAngles[i][j])turnCount<<(x*180/M_PI)<<' ';
             turnCount<<'\n';

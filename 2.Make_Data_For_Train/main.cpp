@@ -9,6 +9,7 @@
 #include <thread>
 #include <cassert>
 #include <cstring>
+#include <iomanip>
 using namespace std;
 
 std::vector<std::vector<double>> road_vectors(PATH_NUM);
@@ -120,7 +121,7 @@ int main(int argc, char* argv[]){
     }
     if(num_threads<=1)num_threads=2;
     std::vector<std::thread> threads;
-    //threads.emplace_back(TaskParam, num_threads-1);
+    threads.emplace_back(TaskParam, num_threads-1);
 
     string pref = "vec";
     for(int i=1;i<=vec_len;++i)header.push_back(pref+to_string(i));
