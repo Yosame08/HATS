@@ -103,7 +103,6 @@ SearchRes SearchRoad(int fromRoad, int toRoad, float toNodeDistA, float fromNode
 
 std::atomic<int> unmatched(0);
 void solve(int id, int thread, ostringstream &fullMatch, ostringstream &cross){
-    if(id<2)return;
     auto myAssert = [id, &fullMatch](bool condition, const string& cause){
         if(condition)return true;
         string msg = string("Can't Match point to road at road id ")+ to_string(id)+string(" due to ")+cause;

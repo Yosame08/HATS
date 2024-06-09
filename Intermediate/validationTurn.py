@@ -50,9 +50,9 @@ with open("ParamTurn.txt", "r") as f:
     lines = f.readlines()
     for line in lines:
         info = line.split(' ')
-        if len(info)<3:
+        if len(info) <= 3:
             time = int(info[0])
-            if time > 105:
+            if time > 120:
                 break
             continue
         param = info[:-1]
@@ -83,7 +83,7 @@ with open("train_turn_cnt.txt", "r") as f:
             if val >= 0:
                 data2[inter][int(val)] += 1
 for key in data2:
-    if key >105: # show half
+    if key > 120: # show half
         continue
     data2[key] = np.array(data2[key]) / sum(data2[key])
 
@@ -94,7 +94,7 @@ plt.xlim([0, 1000])
 plt.ylim([0, 0.05])
 x = np.arange(statBegin, statEnd + granularity, granularity)
 for key in data2:
-    if key > 105: # show half
+    if key > 120: # show half
         continue
     val = key / 360
     plt.plot(x, data2[key], marker='x', color=(val, 0, val), linewidth=1, markersize=1)

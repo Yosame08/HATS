@@ -41,9 +41,9 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
                 if(num>maxNum)maxNum=num;
             }
             sort(ins.begin(),ins.end());
-            int accept = ins.size() * 0.99;
+            int accept = ins.size() * 0.999;
             sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
-            safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99%: "+to_string(ins[accept-1]));
+            safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99.9%: "+to_string(ins[accept-1]));
             upLim[tot] = ins[accept-1]+1;
             stat[tot].reserve(upLim[tot]+1);
             for(int i=0;i<=upLim[tot];++i)stat[tot][i]=0;
@@ -206,11 +206,11 @@ void FunctionFit::LoadParam(const std::string& filename){
 
     for(int i=0;i<times.size();++i){
         double sum = 0;
-        for(int x=upLim[i];x>=0;x-=1){
+        for(int x=upLim[i]*2;x>=0;x-=1){
             sum+=Estimate(x, params[i], cache[i]);
             prep[i][x]=sum;
         }
-        for(int x=0;x<=upLim[i];x+=1){
+        for(int x=0;x<=upLim[i]*2;x+=1){
             prep[i][x]/=sum;
             if(prep[i][x]<minProb)prep[i][x]=minProb;
         }
@@ -222,7 +222,7 @@ void FunctionFit::LoadParam(const std::string& filename){
 
 double FunctionFit::Estimate_wrap(double val, int id) const{
     int v = int(abs(val/granularity));
-    if(v>=upLim[id])return minProb;
+    if(v>=upLim[id]*2)return prep[id][upLim[id]*2];
     return prep[id][v];
     //return Estimate(val, params[id], cache[id]);
 }

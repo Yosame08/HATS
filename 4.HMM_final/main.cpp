@@ -70,9 +70,10 @@ double SearchDifDistProb(double dif, int time) {
 }
 
 double MedianSpeedProb(float len, float estTime){
-    static const float maxSpeed = *max_element(roadSpeed, roadSpeed+7);
-    float mini = len / maxSpeed;
-    return mini / estTime; // Relative probability is ensured - double time, half probability
+     //static const float maxSpeed = *max_element(roadSpeed, roadSpeed+7);
+     //float mini = len / maxSpeed;
+     //return mini / estTime; // Relative probability is ensured - double time, half probability
+    return 1/max(estTime,1.0f);
 }
 
 SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &lastTr, const Trace &nowTr, double accuProb, double maxProb){
@@ -163,6 +164,7 @@ SearchRes SearchRoad(const SearchNode& old, const Candidate& now, const Trace &l
 
 std::atomic<clock_t>sPhaseTM, iPhaseTM;
 void solve(int id){
+    //if(id<10533)return;
     auto myAssert = [&](bool condition, const string& cause){
         if(condition)return true;
         recovStream[id]<<"Failed\n"<<-id-1<<'\n';
@@ -223,6 +225,7 @@ void solve(int id){
                     delete maxNode.path;
                     maxNode = {allProb, now.toNodeDist, result.length, now.roadID, l, i, result.path};
                 }
+                assert(!isnan(maxNode.prob));
             }
             if(maxNode.prob>=0)search.push_back(maxNode);
         }
@@ -237,6 +240,10 @@ void solve(int id){
         double maxProb=-1;
         for(int x=oldBegin;x<=oldEnd;++x)if(search[x].prob>maxProb)maxProb=search[x].prob;
         if(maxProb!=0)for(int x=oldBegin;x<=oldEnd;++x)search[x].prob/=maxProb;
+        else{
+            safe_cout("Warning: Max probability score is 0 at PATH "+to_string(id)+" trace "+to_string(i));
+            for(int x=oldBegin;x<=oldEnd;++x)search[x].prob=1;
+        }
     }
     auto SPH = clock()-beginTM;
     beginTM = clock();

@@ -4,7 +4,7 @@ from math import exp, sqrt
 
 granularity = 1
 statBegin = 0
-statEnd = 6000
+statEnd = 3000
 
 
 def phi(x):

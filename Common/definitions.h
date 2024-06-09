@@ -14,10 +14,10 @@
 #define EPS 1e-5
 #define RECOVER_INTERVAL 15
 #define vec_len 15
-#define degMinLen 30
+#define degMinLen 10
 
 // Macros for [FuncEst.h/cpp] to fit parameters
-#define granularity 2
+#define granularity 1
 #define PARAMTURN "../Intermediate/ParamTurn.txt"
 #define PARAMLENPOS "../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../Intermediate/ParamLenNeg.txt"

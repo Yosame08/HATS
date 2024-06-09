@@ -109,7 +109,6 @@ if __name__ == "__main__":
     check_cpp('2.Make_Data_For_Train', 'Make_Data')
     check_cpp('4.HMM_final', 'HMM_final')
     check_cpp('Tool_Rating_New', 'Tool_Rating_New')
-    check_cpp('Tool_Shortest_Path', 'Tool_Shortest_Path')
     print("[Info] All cpp files are compiled.")
     if torch.cuda.is_available():
         device = 'cuda'
@@ -147,6 +146,6 @@ if __name__ == "__main__":
     
     # Rate the recovery results
     print("Rating")
-    exec_cmd_in('Tool_Shortest_Path', './Tool_Shortest_Path -fn {date_string}')
+    exec_cmd_in('Tool_Rating_New', f'./Tool_Rating_New -fn {date_string}')
     
     print("Task Finish")
