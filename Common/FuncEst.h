@@ -11,7 +11,7 @@ public:
     std::vector<int> times;
 
     enum pName{
-        sig1,S1,sig2,mu2,Size
+        val0,sig1,S1,sig2,mu2,Size
     };
     // use this to fit parameters
     FunctionFit() = default;
@@ -33,7 +33,7 @@ private:
     double sigMul1[mxMissing]{}, sigMul3[mxMissing]{}, midVal[mxMissing]{};
 
     void FindParam(int id);
-    void FindPreciseParam(int id, double param[], const double step[], const double ori[]);
+    void FindPreciseParam(int id, const double step[], const double ori[]);
     void EstiUpdate(int id, const double param[]);
     static double Estimate(double x, const double param[], const double cache[]);
 };

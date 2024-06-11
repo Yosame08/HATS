@@ -17,7 +17,7 @@
 #define degMinLen 10
 
 // Macros for [FuncEst.h/cpp] to fit parameters
-#define granularity 1
+#define granularity 2
 #define PARAMTURN "../Intermediate/ParamTurn.txt"
 #define PARAMLENPOS "../Intermediate/ParamLenPos.txt"
 #define PARAMLENNEG "../Intermediate/ParamLenNeg.txt"

@@ -2,9 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from math import exp, sqrt
 
-granularity = 1
+granularity = 2
 statBegin = 0
 statEnd = 5000
+
+show_intervals = [120, 180]
 
 
 def phi(x):
@@ -34,14 +36,16 @@ def CalcArea(_mu, _sigma):
 
 
 def func(x):
-    global sig1,S1,sig2,mu2 # ,S2,sig3,mu3
+    global sig1, S1, sig2, mu2  # ,S2,sig3,mu3
     sqrt_2_PI = 2.506628274631
     x2 = x * x
     x_mu_2 = (x - mu2) * (x - mu2)
-    #x_mu_3 = (x - mu3) * (x - mu3)
+    # x_mu_3 = (x - mu3) * (x - mu3)
     a2, b2 = sig1 * sig1, sig2 * sig2
     return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + \
-            (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2))
+        (1 - S1) / CalcArea(mu2, sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2)) + \
+        val0 * (x < granularity)
+
 
 plt.figure()
 # 你的数据
@@ -52,49 +56,52 @@ with open("ParamTurn.txt", "r") as f:
         info = line.split(' ')
         if len(info) <= 3:
             time = int(info[0])
-            if time > 120:
-                break
+            continue
+        if time not in show_intervals:
             continue
         param = info[:-1]
         for i in range(len(param)):
             param[i] = float(param[i])
         # sig1,S1,sig2,mu2,S2,sig3,mu3 = param
-        sig1,S1,sig2,mu2 = param
+        val0, sig1, S1, sig2, mu2 = param
         x = []
         y = []
         i = 0
         while i <= 3000:
             x.append(i)
-            i+=1
             y.append(func(i))
-        plt.plot(x, y, marker='x', color=(time/360, 0, 0), linewidth=1, markersize=0)
+            i += 1
+        plt.plot(x, y, marker='x', color=(time / 360, 0, 0), linewidth=1, markersize=0)
 
 data2 = {}
 with open("train_turn_cnt.txt", "r") as f:
     inter = 0
     for line in f:
-        info = line.split(' ')[:-1]
-        if len(info) <= 3:
+        if len(line) <= 16:
+            info = line.split(' ')[:-1]
             inter = int(info[0])
             data2[inter] = [0 for _ in range(int((statEnd - statBegin) * (1 / granularity)) + 1)]
             continue
+        if inter not in show_intervals:
+            continue
+        info = line.split(' ')[:-1]
         for i in range(len(info)):
             val = float(info[i]) / granularity
             if val >= 0:
                 data2[inter][int(val)] += 1
 for key in data2:
-    if key > 120: # show half
+    if key not in show_intervals:  # show half
         continue
     data2[key] = np.array(data2[key]) / sum(data2[key])
 
 plt.title('p')
 plt.xlabel('Degree')
 plt.ylabel('Sum')
-plt.xlim([0, 1000])
+plt.xlim([0, 500])
 plt.ylim([0, 0.05])
 x = np.arange(statBegin, statEnd + granularity, granularity)
 for key in data2:
-    if key > 120: # show half
+    if key not in show_intervals:  # show half
         continue
     val = key / 360
     plt.plot(x, data2[key], marker='x', color=(val, 0, val), linewidth=1, markersize=1)

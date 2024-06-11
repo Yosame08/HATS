@@ -125,12 +125,12 @@ if __name__ == "__main__":
 
     # Step 1: Run HMM for preprocess
     print("Step 1/5: Running HMM for preprocessing at high precision trajectories")
-    exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -t')
-    exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -v')
+    # exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -t')
+    # exec_cmd_in('0.HMM_preprocess', f'./HMM_pre -th {args.threads} -v')
 
     # Step 2: Parse trace data
     print("Step 2/5: Embedding road vectors based on preprocessing results")
-    exec_cmd_in('1.Embed_Roads', f'{sys.executable} main.py')
+    # exec_cmd_in('1.Embed_Roads', f'{sys.executable} main.py')
 
     # Step 3: Generate data for training
     print("Step 3/5: Fit parameters and generate training data")
@@ -142,10 +142,10 @@ if __name__ == "__main__":
 
     # Step 5: Recover traces by HMM and models
     print("Step 5/5: Recover trajectories by LSHMM and models")
-    exec_cmd_in('4.HMM_final', f'./HMM_final -th {args.threads} -fn {date_string}')
+    # exec_cmd_in('4.HMM_final', f'./HMM_final -th {args.threads} -fn {date_string}')
     
     # Rate the recovery results
     print("Rating")
-    exec_cmd_in('Tool_Rating_New', f'./Tool_Rating_New -fn {date_string}')
+    # exec_cmd_in('Tool_Rating_New', f'./Tool_Rating_New -fn {date_string}')
     
     print("Task Finish")

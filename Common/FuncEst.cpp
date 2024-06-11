@@ -16,7 +16,7 @@ using namespace std;
  */
 
 const double sqrt_2_PI = sqrt(M_PI*2);
-const int width = 16;
+const int width = 10; //should be int, ">>" used
 void FunctionFit::ReadStat(const string &filename, bool rev){
     safe_cout("Reading statistics from "+filename);
     std::ifstream file(filename);
@@ -41,8 +41,12 @@ void FunctionFit::ReadStat(const string &filename, bool rev){
                 if(num>maxNum)maxNum=num;
             }
             sort(ins.begin(),ins.end());
-            int accept = ins.size() * 0.999;
-            sigMul1[tot] = ins[accept * 0.6827 * 0.5], sigMul3[tot] = ins[accept * (0.9973+1) / 2], midVal[tot] = ins[accept * 0.75];
+            long accept = ins.size() * 0.999, begins = std::upper_bound(ins.begin(), ins.end(), 0) - ins.begin();
+            auto ratio2index = [&](double ratio){
+                long len = accept - begins;
+                return begins + int(len * ratio);
+            };
+            sigMul1[tot] = ins[ratio2index(0.6827*0.5)], sigMul3[tot] = ins[ratio2index((0.9973+1)/2)], midVal[tot] = ins[ratio2index(0.75)];
             safe_cout("[Fit] Interval = "+to_string(times.back())+"s, Max: "+to_string(ins.back())+", 99.9%: "+to_string(ins[accept-1]));
             upLim[tot] = ins[accept-1]+1;
             stat[tot].reserve(upLim[tot]+1);
@@ -94,10 +98,17 @@ double FunctionFit::Estimate(double x, const double param[], const double cache[
 }
 
 void FunctionFit::EstiUpdate(int id, const double param[]){
-    double l=0;
+    double l=0, sum=0;
     for(int i=0; i<=upLim[id]; ++i){
         double est = Estimate(i, param, cache[id]);
-        l += abs(est - stat[id][i]);
+        if(i==0) est += param[val0];
+        sum += est;
+        prep[id][i] = est;
+    }
+    for(int i=0; i<=upLim[id]; ++i){
+        double est = prep[id][i]/sum;
+        l += abs(stat[id][i]-est);
+        if(l >= loss[id])break;
     }
     if(l < loss[id]){
         loss[id] = l;
@@ -105,51 +116,64 @@ void FunctionFit::EstiUpdate(int id, const double param[]){
     }
 }
 
-void FunctionFit::FindPreciseParam(int id, double param[], const double step[], const double ori[]){
+void FunctionFit::FindPreciseParam(int id, const double step[], const double ori[]){
     auto &cacheArr = cache[id];
-    param[sig1] = ori[0]-step[0]*width;
-    for (int i1=-width; i1<=width; ++i1, param[sig1]+=step[0]) {
-        if(param[sig1]<=1e-10)continue;
-        cacheArr[sig1] = param[sig1] * param[sig1] * 2;
-        param[S1] = ori[1]-step[1]*width;
-        for (int i2=-width; i2<=width; ++i2, param[S1]+=step[1]) {
-            if(param[S1]<=1e-10||param[S1]>=1)continue;
-            cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
-            param[sig2] = ori[2]-step[2]*width;
-            for (int i3=-width; i3<=width; ++i3, param[sig2]+=step[2]) {
-                if(param[sig2]<=1e-10)continue;
-                cacheArr[sig2] = param[sig2] * param[sig2] * 2;
-                param[mu2] = ori[3]-step[3]*width;
-                for (int i4=-width; i4<=width; ++i4, param[mu2]+=step[3]) {
-                    if(param[mu2]<=1e-10)continue;
-                    cacheArr[mu2] = (1 - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
-                    EstiUpdate(id, param);
+    vector<double>paramList[Size];
+    for(int i=-width;i<=width;++i){
+        for(int ty=0;ty<Size;++ty){
+            double now = ori[ty]+step[ty]*i;
+            if(now<=1e-10)continue;
+            paramList[ty].push_back(now);
+        }
+    }
+
+    double param[Size];
+    for (auto v0: paramList[val0]){
+        if(v0>=1)continue;
+        param[val0] = v0;
+        for (auto v1: paramList[sig1]) {
+            param[sig1] = v1;
+            cacheArr[sig1] = param[sig1] * param[sig1] * 2;
+            for (auto v2: paramList[S1]) {
+                if(v2+v0>=1)continue;
+                param[S1] = v2;
+                cacheArr[S1] = param[S1] / CalcArea(0, param[sig1]) / (sqrt_2_PI * param[sig1]);
+                for (auto v3: paramList[sig2]) {
+                    param[sig2] = v3;
+                    cacheArr[sig2] = param[sig2] * param[sig2] * 2;
+                    for (auto v4: paramList[mu2]) {
+                        param[mu2] = v4;
+                        cacheArr[mu2] = (1 - param[val0] - param[S1]) / CalcArea(param[mu2], param[sig2]) / (sqrt_2_PI * param[sig2]);
+                        EstiUpdate(id, param);
+                    }
                 }
             }
         }
     }
+
 }
 
 void FunctionFit::FindParam(int id){
-    double origin_param[Size], tmp_param[Size], step[Size];
+    double origin_param[Size], step[Size];
+    params[id][val0] = 0.1;
     params[id][sig1] = sigMul1[id];
-    params[id][S1] = 0.5;
+    params[id][S1] = 0.45;
     params[id][sig2] = (sigMul3[id]-midVal[id]) / 3;
     params[id][mu2] = midVal[id];
     safe_cout(to_string(id)+" initial params: "+to_string(params[id][0])+" "+to_string(params[id][1])
-    +" "+to_string(params[id][2])+" "+to_string(params[id][3]));
+    +" "+to_string(params[id][2])+" "+to_string(params[id][3])+ " " + to_string(params[id][4]));
     for(int i=0;i<Size;++i)step[i] = params[id][i]/width;
 
     auto updateParam = [&](){
-        for(int i=0;i<Size;++i)tmp_param[i] = origin_param[i] = params[id][i];
+        for(int i=0;i<Size;++i)origin_param[i] = params[id][i];
     };
     updateParam();
 
-    for(int i=1;i<=30;++i){
-        if(i==16)safe_cout(to_string(id)+" Finding parameters... 50%");
-        FindPreciseParam(id, tmp_param, step, origin_param);
+    for(int i=1;i<=15;++i){
+        if(i==8)safe_cout(to_string(id)+" Finding parameters... 50%");
+        FindPreciseParam(id, step, origin_param);
         for(int j=0;j<Size;++j){
-            if(params[id][j] <= origin_param[j]-step[j]*(width/2) || params[id][j] >= origin_param[j]+step[j]*(width/2))continue;
+            if(params[id][j] <= origin_param[j]-step[j]*(width>>1) || params[id][j] >= origin_param[j]+step[j]*(width>>1))continue;
             step[j] /= 2;
         }
         updateParam();
@@ -203,26 +227,35 @@ void FunctionFit::LoadParam(const std::string& filename){
         cache[i][sig1] = params[i][sig1] * params[i][sig1] * 2;
         cache[i][sig2] = params[i][sig2] * params[i][sig2] * 2;
     }
-
+    cout<<"upper limit = ";
+    for(int i=0;i<times.size();++i){
+        for(int x=0;;++x)if(Estimate(x,params[i],cache[i])<1e-40){
+            upLim[i]=x;
+            cout<<x<<' ';
+            break;
+        }
+    }
+    cout<<endl;
     for(int i=0;i<times.size();++i){
         double sum = 0;
-        for(int x=upLim[i]*2;x>=0;x-=1){
+        for(int x=upLim[i];x>=0;x-=1){
             sum+=Estimate(x, params[i], cache[i]);
             prep[i][x]=sum;
+            if(x==0)prep[i][x]+=params[i][val0], sum+=params[i][val0];
         }
-        for(int x=0;x<=upLim[i]*2;x+=1){
+        for(int x=0;x<=upLim[i];x+=1){
             prep[i][x]/=sum;
             if(prep[i][x]<minProb)prep[i][x]=minProb;
         }
     }
 
-    safe_cout("Parameters loaded. All estimated values below should be in range (0,1) (, or it is a bug):");
-    safe_cout(to_string(Estimate_wrap(10,8))+" "+to_string(Estimate_wrap(100,12))+" "+to_string(Estimate_wrap(1000,16)));
+    safe_cout("Parameters loaded. All estimated values below should be in range [0,1] (, or it is a bug):");
+    safe_cout(to_string(Estimate_wrap(0,8))+" "+to_string(Estimate_wrap(10,12))+" "+to_string(Estimate_wrap(100,16)));
 }
 
 double FunctionFit::Estimate_wrap(double val, int id) const{
     int v = int(abs(val/granularity));
-    if(v>=upLim[id]*2)return prep[id][upLim[id]*2];
+    if(v>=upLim[id])return prep[id][upLim[id]];
     return prep[id][v];
     //return Estimate(val, params[id], cache[id]);
 }

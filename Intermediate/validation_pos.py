@@ -41,7 +41,8 @@ def func(x):
     #x_mu_3 = (x - mu3) * (x - mu3)
     a2, b2 = sig1 * sig1, sig2 * sig2
     return S1 / CalcArea(0, sig1) / (sqrt_2_PI * sig1) * exp(-x2 / (a2 * 2)) + \
-            (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2))
+            (1-S1) / CalcArea(mu2,sig2) / (sqrt_2_PI * sig2) * exp(-x_mu_2 / (b2 * 2)) + \
+            val0 * (x < granularity / 2)
 
 plt.figure()
 # 你的数据
@@ -57,7 +58,7 @@ with open("ParamLenPos.txt", "r") as f:
         for i in range(len(param)):
             param[i] = float(param[i])
         # sig1,S1,sig2,mu2,S2,sig3,mu3 = param
-        sig1,S1,sig2,mu2 = param
+        val0,sig1,S1,sig2,mu2 = param
         x = []
         y = []
         i = 0
