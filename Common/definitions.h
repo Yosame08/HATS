@@ -1,49 +1,34 @@
-#ifndef MYDEFINES_H
-#define MYDEFINES_H
+//
+// Created by yosame on 24-6-15.
+//
 
-#define EDGEFILE "../Map/edgeOSM.txt"
-#define TYPEFILE "../Map/wayTypeOSM.txt"
-#define TRACEFILE "../test_sampled.txt"
-#define ROADVECTOR "../Intermediate/road_vectors.txt"
-#define GRIDSIZE 0.001 // 0.001 latitude = 111.195m
-#define PATH_NUM 65536
-#define TIMEZONE 0
-#define SIGZ 4.07 // Related to the confidence of the GPS location point. The more reliable the location point is, the smaller σ_z should be.
-#define BETA 2 // Affects the confidence calculated by the size of the difference between Great Circle Distance and Route Distance
-#define SPEEDLIM 50 // Speed limit in m/s
-#define EPS 1e-5
-#define RECOVER_INTERVAL 15
-#define vec_len 15
-#define degMinLen 10
+#ifndef INC_4_SOLVE_DEFINITIONS_H
+#define INC_4_SOLVE_DEFINITIONS_H
 
-// Macros for [FuncEst.h/cpp] to fit parameters
-#define granularity 2
-#define PARAMTURN "../Intermediate/ParamTurn.txt"
-#define PARAMLENPOS "../Intermediate/ParamLenPos.txt"
-#define PARAMLENNEG "../Intermediate/ParamLenNeg.txt"
-#define mxMissing 25 // maximum number of consecutive missing records in the trajectory
-#define minProb 1e-150 // minProb^2 doesn't exceed double
+#define TraceNumber 262144
+#define NodeNumber 524288
+#define RoadNumber 65536
+#define RoadType 7
+#define GridSize 0.001// 0.001 latitude = 111.195m
+#define RecoverInterval 15
+#define MaxMissing 24
 
-#include <vector>
-#include <unordered_map>
-#include <string>
+#define RoadVecLen 16
+#define DegMinLen 15
+#define SpeedLimit 40 // Speed limit in m/s
+#define PreprocessSigZ 4.07
+#define PreprocessBeta 2.0
+#define MinProb 1e-150 // minProb^2 doesn't exceed double
 
-struct GridInfo;
-struct PointLL;
-struct Road;
-struct Candidate;
-using GridType = std::unordered_map<int,std::unordered_map<int,std::vector<GridInfo>>>;
+#define FeatureGranularity 2
+#define FeatureOutTurn "../../Intermediate/ParamTurn.params"
+#define FeatureOutLenPos "../../Intermediate/ParamLenPos.params"
+#define FeatureOutLenNeg "../../Intermediate/ParamLenNeg.params"
 
-double PtMatchProb(double dist, double sigz = SIGZ);
-void FindRoad(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found, double sigz = SIGZ);
-void FindRoadMulti(int dFrom, int dTo, const PointLL &p, std::vector<Candidate>&found);
-/*
- * Find out the total degrees of turning from the starting point of the segment
- */
-float FindAngle(int roadID, double toNodeDist);
-PointLL FindLatLon(int roadID, float toNodeDist);
-float RoadLen(int roadID);
-double GetTurnAngle(int fromID, int toID);
-double DiscontinuousAngle(int fromID, int toID);
+#define EdgeFile "../../Map/edgeOSM.txt"
+#define WayTypeFile "../../Map/wayTypeOSM.txt"
 
-#endif //MYDEFINES_H
+#define DatasetPath "../../Dataset/"
+#define MapPath "../../Map/"
+
+#endif// INC_4_SOLVE_DEFINITIONS_H

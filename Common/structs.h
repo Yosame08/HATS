@@ -1,20 +1,27 @@
-#ifndef STRUCTS_H
-#define STRUCTS_H
+//
+// Created by yosame on 24-6-15.
+//
 
-#include <vector>
+#ifndef INC_4_SOLVE_STRUCTS_H
+#define INC_4_SOLVE_STRUCTS_H
+
 #include "definitions.h"
+#include <atomic>
+#include <condition_variable>
+#include <cstdlib>
+#include <functional>
+#include <mutex>
+#include <queue>
+#include <thread>
 
-struct G{
-    std::vector<int>node[1048576];
-    void connect(int nodeID, int roadID){
-        node[nodeID].push_back(roadID);
-    }
+enum SolveMode{
+    Preprocess, Final
 };
 
 struct Point;
 struct Vector {
     double x, y;
-    Vector(double a,double b):x(a),y(b){}
+    Vector(double a, double b) : x(a), y(b) {}
     explicit Vector(const Point &p);
     friend Vector operator-(const Vector &a, const Vector &b) {
         return Vector{(a.x) - (b.x), (a.y) - (b.y)};
@@ -24,10 +31,10 @@ struct Vector {
     }
     friend double operator%(const Vector a, const Vector b) {
         return (a.x) * (b.y) - (b.x) * (a.y);
-    }//Cross Product
+    }// Cross Product
     friend double operator*(const Vector a, const Vector b) {
         return (a.x) * (b.x) + (a.y) * (b.y);
-    }//Dot Product
+    }// Dot Product
     [[nodiscard]] double length() const;
 };
 
@@ -45,178 +52,117 @@ struct Point {
         return Point{(a.x) + (b.x), (a.y) + (b.y)};
     }
     friend Point operator/(const Point a, const int b) {
-        return Point{(a.x)/b, (a.y)/b};
+        return Point{(a.x) / b, (a.y) / b};
     }
     friend bool operator==(const Point &a, const Point &b) {
-        return a.x==b.x&&a.y==b.y;
+        return a.x == b.x && a.y == b.y;
     }
 };
 
-struct PointLL{
-    double lat,lon;
-    PointLL() = default;
-    PointLL(double a, double b): lat(a), lon(b){}
-    /// Returns the great circle distance between two points (PointLL)
-    /// \param x Another point (PointLL)
+struct PtEarth {
+    double lat, lon;
+    PtEarth() = default;
+    PtEarth(double a, double b) : lat(a), lon(b) {}
+    /// Returns the great circle distance between two points (PtEarth)
+    /// \param x Another point (PtEarth)
     /// \return Great circle distance
-    [[nodiscard]] double dist(PointLL x) const;
-    friend Vector operator-(const PointLL &a, const PointLL &b) {
+    [[nodiscard]] double dist(PtEarth x) const;
+    friend Vector operator-(const PtEarth &a, const PtEarth &b) {
         return Vector{(a.lat) - (b.lat), (a.lon) - (b.lon)};
     }
-    friend PointLL operator+(const PointLL &a, const Vector &b) {
-        return PointLL{(a.lat) + (b.x), (a.lon) + (b.y)};
+    friend PtEarth operator+(const PtEarth &a, const Vector &b) {
+        return PtEarth{(a.lat) + (b.x), (a.lon) + (b.y)};
     }
-    friend PointLL operator+(const PointLL &a, const PointLL &b) {
-        return PointLL{(a.lat) + (b.lat), (a.lon) + (b.lon)};
+    friend PtEarth operator+(const PtEarth &a, const PtEarth &b) {
+        return PtEarth{(a.lat) + (b.lat), (a.lon) + (b.lon)};
     }
-    friend PointLL operator/(const PointLL a, const int b) {
-        return PointLL{(a.lat)/b, (a.lon)/b};
+    friend PtEarth operator/(const PtEarth a, const int b) {
+        return PtEarth{(a.lat) / b, (a.lon) / b};
     }
-    friend bool operator==(const PointLL &a, const PointLL &b) {
-        return a.lat==b.lat&&a.lon==b.lon;
+    friend bool operator==(const PtEarth &a, const PtEarth &b) {
+        return a.lat == b.lat && a.lon == b.lon;
     }
 };
 
-struct Trace {
-    PointLL p;
-    long long timestamp;
-//    explicit operator const Point&() const {
-//        return p;
-//    }
-};
-
-struct Line{
-    PointLL startLL,endLL; // lat/lon
-    float len;
-    explicit Line(const PointLL &s,const PointLL &e){
-        startLL=s,endLL=e;
+struct Line {
+    PtEarth startLL, endLL;// lat/lon
+    double len;
+    explicit Line(const PtEarth &s, const PtEarth &e) : startLL(s), endLL(e) {
         len = startLL.dist(endLL);
     }
 };
 
-struct Segments{
-    Line line;
-    float sumPrev,sumAfter;
-};
-
-struct Road{
-    int level, from, to;
-    std::vector<Segments>seg;
-    std::vector<float>angle;
-};
-
-struct PathNode{
-    int roadID;
-    long long timestamp;
-    float toNodeDist;
-};
-using Path = std::vector<PathNode>;
-
-struct SearchNode{
-    double prob;
-    float toNodeDist, length;
-    int roadID,prev,pointID;
-    Path* path;
-};
-
-struct GridInfo{
-    int roadID, segID;
-};
-
-struct Candidate{
-    int roadID;
-    float toNodeDist;
-    double prob;
-};
-
-struct SearchRes{
-    double prob;
-    float length, angle;
-    int node;
-    Path* path;
-};
-
-struct QueueInfo{
-    double accuProb;
-    int node;
-    bool operator <(const QueueInfo &b) const{return accuProb < b.accuProb;}
-};
-
-struct QueueInfo2{
-    PathNode pNode;
-    int prev, level;
-    float len, angle;
-    float estTime;
-};
-
-struct QInfo{ // For A-star
-    int level, node;
-    float len, toDstLen, angle;
-    bool operator <(const QInfo &b) const{return len+toDstLen > b.len+b.toDstLen;}
-};
-
-struct BitInt{
-    unsigned v[(PATH_NUM>>5)+1]{};
+struct BitInt {
+    unsigned v[(RoadNumber >> 5) + 1]{};
     unsigned chk(unsigned x);
     void set(unsigned x);
 };
 
-struct TraceRD{
-    Trace tr;
+struct stdPairHash {
+    template<class T1, class T2>
+    std::size_t operator()(const std::pair<T1, T2> &pair) const {
+        return (std::hash<T1>()(pair.first) << 16) ^ std::hash<T2>()(pair.second);
+    }
+};
+
+struct GridInfo {
+    int roadID, segID;
+};
+using RoadGrid = std::unordered_map<std::pair<int, int>, std::vector<GridInfo>, stdPairHash>;
+
+struct PathNode {
     int roadID;
+    double toNodeDist;
+    double timestamp;
+};
+using Path = std::vector<PathNode>;
+
+struct Searching {
+    PathNode pNode;
+    int prev, seqID;
+    double len, angle, estTime;
 };
 
-struct Feature{
-    float velAvg, velVar, velMax;
-    int id;
+struct Status {
+    double prob, toNodeDist, length;
+    int roadID, prev;
+    std::unique_ptr<Path> path;
+    double angle, error;
 };
 
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
-#include <functional>
+struct Candidate {
+    int roadID;
+    double toNodeDist;
+    double errDist;
+};
+
+struct Searched {
+    double prob, length, angle;
+    std::unique_ptr<Path> path;
+};
+
+struct GPS {
+    PtEarth p;
+    long long timestamp;
+};
+using Trace = std::vector<GPS>;
+using Traces = std::vector<Trace>;
 
 class ThreadPool {
 public:
-    ThreadPool(size_t threads) : stop(false) {
-        for(size_t i = 0;i<threads;++i)
-            workers.emplace_back([this] {
-                for(;;) {
-                    std::function<void()> task;
-                    {
-                        std::unique_lock<std::mutex> lock(this->queue_mutex);
-                        this->condition.wait(lock, [this]{ return this->stop || !this->tasks.empty(); });
-                        if(this->stop && this->tasks.empty())
-                            return;
-                        task = std::move(this->tasks.front());
-                        this->tasks.pop();
-                    }
-                    task();
-                }
-            });
-    }
-
+    explicit ThreadPool(size_t threads);
     template<class F>
-    void enqueue(F&& f) {
+    void enqueue(F &&f) {
         {
             std::unique_lock<std::mutex> lock(queue_mutex);
-            if(stop)
-                throw std::runtime_error("enqueue on stopped ThreadPool");
+            if (stop) throw std::runtime_error("enqueue on stopped ThreadPool");
             tasks.emplace(std::forward<F>(f));
         }
         condition.notify_one();
     }
-
-    ~ThreadPool() {
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            stop = true;
-        }
-        condition.notify_all();
-        for(std::thread &worker: workers)
-            worker.join();
-    }
+    ~ThreadPool();
+    void startProgressDisplay(int lim);
+    void stopProgressDisplay();
 
 private:
     std::vector<std::thread> workers;
@@ -224,5 +170,10 @@ private:
     std::mutex queue_mutex;
     std::condition_variable condition;
     bool stop;
+    std::atomic<int> progress{0};
+    std::atomic<bool> display_stop_requested{false};
+    int limit;
+    std::thread progress_thread;
 };
-#endif //STRUCTS_H
+
+#endif// INC_4_SOLVE_STRUCTS_H

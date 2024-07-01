@@ -4,22 +4,9 @@ DataGenerator/
 __pycache__/
 *.txt
 !CMakeLists.txt
-!note.txt
-*.csv
 *.pt
 *.pth
-*.html
-!edgeOSM.txt
-!nodeOSM.txt
-!wayTypeOSM.txt
-build.ninja
-CMakeCache.txt
-CMakeFiles/
-Testing/
-.cmake/
-.vscode/
-cmake_install.cmake
-.ninja_deps
-.ninja_log
+*.csv
+*.param
 <Makefile>
 
