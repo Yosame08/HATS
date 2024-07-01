@@ -8,5 +8,6 @@ __pycache__/
 *.pth
 *.csv
 *.param
+*.html
 <Makefile>
 
